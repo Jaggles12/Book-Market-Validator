@@ -9,6 +9,7 @@ export type Book = {
   reviews: number;
   rank: number;
   coverColor: string;
+  publicationYear: number;
 };
 
 export type MarketAnalysis = {
@@ -20,6 +21,26 @@ export type MarketAnalysis = {
     avgRating: number;
     competitionLevel: "Low" | "Medium" | "High";
     demandLevel: "Low" | "Medium" | "High";
+  };
+  detailedStats: {
+    totalBooks: number;
+    avgReviews: number;
+    priceMin: number;
+    priceMax: number;
+    priceMedian: number;
+    strongCompetitors: number; // Reviews > 1000
+    midCompetitors: number;    // Reviews 100-1000
+    lowReviewBooks: number;    // Reviews < 50
+    bsrBuckets: {
+      veryStrong: number; // < 10k
+      strong: number;     // 10k - 100k
+      moderate: number;   // 100k - 300k
+      weak: number;       // > 300k
+    };
+    dominantAuthors: { name: string; count: number }[];
+    evergreenSignal: boolean;
+    cheapBookShare: number;
+    premiumBookShare: number;
   };
   books: Book[];
   suggestions: string[];
@@ -79,27 +100,30 @@ function detectGenre(ideaText: string) {
 }
 
 // 2. Generate Mock Books based on Genre
-function generateMockBooks(genre: { category: string; subtype: string }, count: number = 10): Book[] {
+function generateMockBooks(genre: { category: string; subtype: string }, count: number = 20): Book[] {
   const titles = {
-    fantasy: ["The Crystal Crown", "Dragon's Oath", "Shadows of Eldoria", "Mage's Lament", "The Void Walker"],
-    romance: ["Love in Paris", "The Billionaire's Secret", "Heartstrings", "Summer Love", "Forever Yours"],
-    business: ["Startup 101", "The CEO Mindset", "Growth Hacking", "Scale Up", "Profit First"],
-    devotional: ["Morning Grace", "Daily Walk", "30 Days of Peace", "Faith & Fire", "Quiet Waters"],
-    general: ["The Guide to Life", "Understanding Everything", "The Big Book", "Secrets Revealed", "Path to Wisdom"],
+    fantasy: ["The Crystal Crown", "Dragon's Oath", "Shadows of Eldoria", "Mage's Lament", "The Void Walker", "Elven Legacy", "Dark Tower", "Mystic River", "Storm Caller", "Kingslayer"],
+    romance: ["Love in Paris", "The Billionaire's Secret", "Heartstrings", "Summer Love", "Forever Yours", "Secret Crush", "Wedding Bells", "Italian Summer", "Midnight Kiss", "Second Chance"],
+    business: ["Startup 101", "The CEO Mindset", "Growth Hacking", "Scale Up", "Profit First", "Market Leader", "Sales Mastery", "Team Building", "Deep Work Guide", "Zero to One Redux"],
+    devotional: ["Morning Grace", "Daily Walk", "30 Days of Peace", "Faith & Fire", "Quiet Waters", "Spirit Lead", "Prayers for Today", "Walking in Light", "Grace Abounds", "Sunday Morning"],
+    general: ["The Guide to Life", "Understanding Everything", "The Big Book", "Secrets Revealed", "Path to Wisdom", "Modern Life", "Future Trends", "History of Now", "Why We Sleep", "Habit Forming"],
   };
 
   const baseTitles = titles[genre.subtype as keyof typeof titles] || titles.general;
+  const currentYear = new Date().getFullYear();
   
   return Array.from({ length: count }).map((_, i) => {
     const baseTitle = baseTitles[i % baseTitles.length];
+    const authorIndex = Math.floor(i / 2); // Simulate some repeat authors
     return {
-      title: `${baseTitle} ${i > 4 ? "Vol. " + (i-3) : ""}`,
-      author: `Author ${String.fromCharCode(65 + i)}`,
-      price: Math.floor(Math.random() * 20) + 9.99,
-      rating: 3.5 + Math.random() * 1.5, // 3.5 to 5.0
-      reviews: Math.floor(Math.random() * 500) + 10,
-      rank: Math.floor(Math.random() * 100000) + 500,
+      title: `${baseTitle} ${i > 9 ? "Vol. " + (i-8) : ""}`,
+      author: `Author ${String.fromCharCode(65 + authorIndex)}`,
+      price: Math.floor(Math.random() * 20) + 2.99,
+      rating: 3.0 + Math.random() * 2.0, // 3.0 to 5.0
+      reviews: Math.floor(Math.pow(Math.random(), 3) * 5000) + 5, // Skew towards lower reviews with some huge hits
+      rank: Math.floor(Math.pow(Math.random(), 2) * 500000) + 500, // Skew towards lower ranks (better sales)
       coverColor: `hsl(${Math.random() * 360}, 70%, 80%)`,
+      publicationYear: currentYear - Math.floor(Math.random() * 5),
     };
   });
 }
@@ -109,30 +133,58 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
   return new Promise((resolve) => {
     setTimeout(() => {
       const genre = detectGenre(idea);
-      const books = generateMockBooks(genre);
+      const books = generateMockBooks(genre, 25);
       
+      // Calculate Detailed Stats
+      const prices = books.map(b => b.price).sort((a, b) => a - b);
+      const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+      const avgRating = books.reduce((a, b) => a + b.rating, 0) / books.length;
+      const avgReviews = books.reduce((a, b) => a + b.reviews, 0) / books.length;
+
+      const strongCompetitors = books.filter(b => b.reviews >= 1000).length;
+      const midCompetitors = books.filter(b => b.reviews >= 100 && b.reviews < 1000).length;
+      const lowReviewBooks = books.filter(b => b.reviews < 50).length;
+
+      const bsrBuckets = {
+        veryStrong: books.filter(b => b.rank <= 10000).length,
+        strong: books.filter(b => b.rank > 10000 && b.rank <= 100000).length,
+        moderate: books.filter(b => b.rank > 100000 && b.rank <= 300000).length,
+        weak: books.filter(b => b.rank > 300000).length,
+      };
+
+      // Author Dominance
+      const authorCounts: Record<string, number> = {};
+      books.forEach(b => { authorCounts[b.author] = (authorCounts[b.author] || 0) + 1; });
+      const dominantAuthors = Object.entries(authorCounts)
+        .filter(([_, count]) => count >= 3)
+        .map(([name, count]) => ({ name, count }));
+
+      const cheapBookShare = books.filter(b => b.price <= 2.99).length / books.length;
+      const premiumBookShare = books.filter(b => b.price >= 15).length / books.length;
+
+      const currentYear = new Date().getFullYear();
+      const recentBooks = books.filter(b => b.publicationYear >= currentYear - 1).length;
+      const oldBooks = books.filter(b => b.publicationYear <= currentYear - 5).length;
+      const evergreenSignal = recentBooks > 0 && oldBooks > 0;
+
       // Simple Deterministic Logic for Demo
       let verdict: "GREEN" | "YELLOW" | "RED" = "YELLOW";
-      let verdictReason = "Market data shows mixed signals. There is demand, but competition is present.";
+      let verdictReason = "Mixed signals. Some demand and some competition — success depends on a clear angle.";
       let suggestions = [
         "Focus on a specific sub-niche to reduce competition.",
         "Ensure your cover design is professional and stands out.",
         "Consider bundling a workbook or journal."
       ];
 
-      // Fun logic based on keywords
       if (idea.toLowerCase().includes("unicorn") || idea.toLowerCase().includes("billionaire")) {
         verdict = "GREEN";
-        verdictReason = "High demand detected! This niche is currently trending with low competition quality.";
+        verdictReason = "High demand detected! This niche is currently trending with strong sales velocity across multiple authors.";
         suggestions = ["Launch quickly to capture the trend.", "Focus on Amazon Ads.", "Write a series."];
       } else if (idea.toLowerCase().includes("poetry") || idea.toLowerCase().includes("memoir")) {
         verdict = "RED";
-        verdictReason = "This is a very saturated market with low organic discoverability.";
+        verdictReason = "This is a very saturated market with low organic discoverability and high author dominance.";
         suggestions = ["Build an audience on social media first.", "Focus on direct sales.", "Consider a unique angle or hybrid genre."];
       }
-
-      const avgPrice = books.reduce((acc, b) => acc + b.price, 0) / books.length;
-      const avgRating = books.reduce((acc, b) => acc + b.rating, 0) / books.length;
 
       resolve({
         verdict,
@@ -141,10 +193,25 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
         stats: {
           avgPrice,
           avgRating,
-          competitionLevel: verdict === "RED" ? "High" : verdict === "GREEN" ? "Low" : "Medium",
-          demandLevel: verdict === "RED" ? "Low" : verdict === "GREEN" ? "High" : "Medium",
+          competitionLevel: strongCompetitors > 5 ? "High" : strongCompetitors > 2 ? "Medium" : "Low",
+          demandLevel: bsrBuckets.veryStrong + bsrBuckets.strong > 5 ? "High" : "Medium",
         },
-        books,
+        detailedStats: {
+          totalBooks: books.length,
+          avgReviews,
+          priceMin: prices[0],
+          priceMax: prices[prices.length - 1],
+          priceMedian: prices[Math.floor(prices.length / 2)],
+          strongCompetitors,
+          midCompetitors,
+          lowReviewBooks,
+          bsrBuckets,
+          dominantAuthors,
+          evergreenSignal,
+          cheapBookShare,
+          premiumBookShare,
+        },
+        books: books.sort((a, b) => a.rank - b.rank), // Return sorted by rank
         suggestions,
       });
     }, 2500); // 2.5s simulated delay

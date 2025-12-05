@@ -3,7 +3,19 @@ import { MobileLayout } from "@/components/MobileLayout";
 import { useEffect, useState } from "react";
 import { validateBookIdea, type MarketAnalysis } from "@/lib/mock-validator";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, AlertTriangle, XCircle, BarChart3, Users, DollarSign, Book } from "lucide-react";
+import { 
+  ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
+  BarChart3, Users, DollarSign, Book, TrendingUp, 
+  Activity, Award, AlertCircle, Layers
+} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 
 export default function Validate() {
   const [location, setLocation] = useLocation();
@@ -116,6 +128,155 @@ export default function Validate() {
             </div>
           </motion.div>
 
+          {/* Detailed Metrics Accordion */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <h3 className="text-lg font-bold mb-3 px-1 flex items-center gap-2">
+              <Activity size={18} className="text-primary"/> Deep Dive Analysis
+            </h3>
+            <Accordion type="single" collapsible className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+              
+              {/* Demand Analysis */}
+              <AccordionItem value="demand" className="border-b border-border/50">
+                <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-gray-50">
+                  <div className="flex items-center gap-3 text-left">
+                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <TrendingUp size={16} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground">Sales Demand</div>
+                      <div className="text-xs text-muted-foreground">BSR & Rank Analysis</div>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Very Strong (Rank &lt; 10k)</span>
+                        <span>{data.detailedStats.bsrBuckets.veryStrong} books</span>
+                      </div>
+                      <Progress value={(data.detailedStats.bsrBuckets.veryStrong / data.detailedStats.totalBooks) * 100} className="h-2" indicatorClassName="bg-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Strong (Rank 10k-100k)</span>
+                        <span>{data.detailedStats.bsrBuckets.strong} books</span>
+                      </div>
+                      <Progress value={(data.detailedStats.bsrBuckets.strong / data.detailedStats.totalBooks) * 100} className="h-2" indicatorClassName="bg-blue-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Weak (Rank &gt; 300k)</span>
+                        <span>{data.detailedStats.bsrBuckets.weak} books</span>
+                      </div>
+                      <Progress value={(data.detailedStats.bsrBuckets.weak / data.detailedStats.totalBooks) * 100} className="h-2" indicatorClassName="bg-gray-300" />
+                    </div>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl text-xs text-muted-foreground">
+                    {data.detailedStats.evergreenSignal 
+                      ? "🌱 Evergreen Signal: Both new and old books are selling well."
+                      : "⚠️ Trend Alert: Most sales are coming from very recent books."}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Competition Analysis */}
+              <AccordionItem value="competition" className="border-b border-border/50">
+                <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-gray-50">
+                  <div className="flex items-center gap-3 text-left">
+                    <div className="h-8 w-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <Award size={16} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground">Competition</div>
+                      <div className="text-xs text-muted-foreground">Review Counts & Dominance</div>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
+                   <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2 bg-red-50 rounded-lg">
+                        <div className="text-lg font-bold text-red-600">{data.detailedStats.strongCompetitors}</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight">Giants<br/>(1000+ revs)</div>
+                      </div>
+                      <div className="p-2 bg-orange-50 rounded-lg">
+                        <div className="text-lg font-bold text-orange-600">{data.detailedStats.midCompetitors}</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight">Mid-Tier<br/>(100-1k revs)</div>
+                      </div>
+                      <div className="p-2 bg-green-50 rounded-lg">
+                        <div className="text-lg font-bold text-green-600">{data.detailedStats.lowReviewBooks}</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight">New<br/>(&lt;50 revs)</div>
+                      </div>
+                   </div>
+                   
+                   {data.detailedStats.dominantAuthors.length > 0 && (
+                     <div className="space-y-2">
+                        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Dominant Authors</div>
+                        <div className="flex flex-wrap gap-2">
+                          {data.detailedStats.dominantAuthors.map((author, i) => (
+                            <div key={i} className="text-xs bg-gray-100 px-2 py-1 rounded-md font-medium border border-gray-200">
+                              {author.name} ({author.count}x)
+                            </div>
+                          ))}
+                        </div>
+                     </div>
+                   )}
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Pricing Analysis */}
+              <AccordionItem value="pricing" className="border-none">
+                <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-gray-50">
+                  <div className="flex items-center gap-3 text-left">
+                    <div className="h-8 w-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                      <DollarSign size={16} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground">Pricing Strategy</div>
+                      <div className="text-xs text-muted-foreground">Market Price Spread</div>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
+                  <div className="flex items-center justify-between px-2">
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground mb-1">Min</div>
+                      <div className="font-mono font-medium">${data.detailedStats.priceMin.toFixed(2)}</div>
+                    </div>
+                    <div className="h-px bg-border flex-1 mx-4 relative">
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-3 text-[10px] bg-white px-1 text-muted-foreground">Median</div>
+                      <div className="absolute left-1/2 -translate-x-1/2 top-[-2px] h-2 w-2 bg-black rounded-full"></div>
+                      <div className="absolute left-1/2 -translate-x-1/2 top-3 font-bold text-sm">${data.detailedStats.priceMedian.toFixed(2)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-muted-foreground mb-1">Max</div>
+                      <div className="font-mono font-medium">${data.detailedStats.priceMax.toFixed(2)}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 mt-4">
+                     {data.detailedStats.cheapBookShare > 0.3 && (
+                       <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">
+                         <AlertCircle size={14} />
+                         High volume of cheap books ({Math.round(data.detailedStats.cheapBookShare * 100)}% &lt; $2.99)
+                       </div>
+                     )}
+                     {data.detailedStats.premiumBookShare > 0.2 && (
+                       <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 p-2 rounded-lg">
+                         <CheckCircle2 size={14} />
+                         Premium pricing detected ({Math.round(data.detailedStats.premiumBookShare * 100)}% &gt; $15)
+                       </div>
+                     )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </motion.div>
+
           {/* Suggestions */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -151,6 +312,9 @@ export default function Validate() {
                     style={{ backgroundColor: book.coverColor }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                    <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
+                      #{book.rank.toLocaleString()}
+                    </div>
                     <div className="absolute bottom-3 left-3 right-3 text-white font-bold text-sm leading-tight shadow-black drop-shadow-md">
                       {book.title}
                     </div>
