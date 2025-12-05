@@ -114,10 +114,15 @@ function generateMockBooks(genre: { category: string; subtype: string }, count: 
   
   return Array.from({ length: count }).map((_, i) => {
     const baseTitle = baseTitles[i % baseTitles.length];
-    const authorIndex = Math.floor(i / 2); // Simulate some repeat authors
+    // Simulate author dominance: Author A gets ~20% of books, Author B gets ~10%
+    let authorName;
+    if (i < 5) authorName = "J.K. Rowlling-esque"; // 5 books (Dominant)
+    else if (i < 8) authorName = "James Patterson-ish"; // 3 books (Dominant)
+    else authorName = `Author ${String.fromCharCode(65 + Math.floor(i / 2))}`;
+
     return {
       title: `${baseTitle} ${i > 9 ? "Vol. " + (i-8) : ""}`,
-      author: `Author ${String.fromCharCode(65 + authorIndex)}`,
+      author: authorName,
       price: Math.floor(Math.random() * 20) + 2.99,
       rating: 3.0 + Math.random() * 2.0, // 3.0 to 5.0
       reviews: Math.floor(Math.pow(Math.random(), 3) * 5000) + 5, // Skew towards lower reviews with some huge hits

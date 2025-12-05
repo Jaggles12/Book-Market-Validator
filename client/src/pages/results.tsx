@@ -213,18 +213,36 @@ export default function Validate() {
                       </div>
                    </div>
                    
-                   {data.detailedStats.dominantAuthors.length > 0 && (
-                     <div className="space-y-2">
-                        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Dominant Authors</div>
+                   <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Author Dominance</div>
+                        {data.detailedStats.dominantAuthors.length === 0 && (
+                          <div className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                            <CheckCircle2 size={10} /> Healthy (Diverse)
+                          </div>
+                        )}
+                         {data.detailedStats.dominantAuthors.length > 0 && (
+                          <div className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                            <AlertTriangle size={10} /> Warning
+                          </div>
+                        )}
+                      </div>
+                      
+                      {data.detailedStats.dominantAuthors.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {data.detailedStats.dominantAuthors.map((author, i) => (
-                            <div key={i} className="text-xs bg-gray-100 px-2 py-1 rounded-md font-medium border border-gray-200">
-                              {author.name} ({author.count}x)
+                            <div key={i} className="text-xs bg-amber-50 text-amber-900 px-2 py-1 rounded-md font-medium border border-amber-100 flex items-center gap-1">
+                              <Users size={10} className="opacity-50"/>
+                              {author.name} ({author.count} books)
                             </div>
                           ))}
                         </div>
-                     </div>
-                   )}
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">
+                          No single author controls more than 3 spots in the top results. This is good for new entrants.
+                        </p>
+                      )}
+                   </div>
                 </AccordionContent>
               </AccordionItem>
 
