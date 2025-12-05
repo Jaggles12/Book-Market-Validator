@@ -8,6 +8,7 @@ export type Book = {
   rating: number;
   reviews: number;
   rank: number;
+  image?: string | null;
   coverColor: string;
   publicationYear: number;
 };

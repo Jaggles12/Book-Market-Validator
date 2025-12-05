@@ -12,6 +12,7 @@ interface RainforestBook {
   title?: string;
   asin?: string;
   link?: string;
+  image?: string;
   rating?: number;
   ratings_total?: number;
   reviews_total?: number;
@@ -26,6 +27,7 @@ interface NormalizedBook {
   title: string;
   asin: string;
   link: string;
+  image: string | null;
   rating: number;
   reviews: number;
   price: number | null;
@@ -133,6 +135,7 @@ async function fetchAmazonBooks(searchTerm: string): Promise<NormalizedBook[]> {
         title: r.title || "",
         asin: r.asin || "",
         link: r.link || "",
+        image: r.image || null,
         rating: r.rating || 0,
         reviews: r.ratings_total || r.reviews_total || 0,
         price: priceValue,
@@ -415,6 +418,7 @@ export async function registerRoutes(
           rating: b.rating,
           reviews: b.reviews,
           rank: b.rank || 999999,
+          image: b.image,
           coverColor: `hsl(${Math.random() * 360}, 70%, 80%)`,
           publicationYear: b.publicationDate ? new Date(b.publicationDate).getFullYear() : new Date().getFullYear(),
         })),

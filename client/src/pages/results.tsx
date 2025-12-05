@@ -328,15 +328,29 @@ export default function Validate() {
                 <div key={i} className="shrink-0 w-32">
                   <div 
                     className="w-32 h-48 rounded-lg shadow-md mb-3 relative overflow-hidden"
-                    style={{ backgroundColor: book.coverColor }}
+                    style={{ backgroundColor: book.image ? undefined : book.coverColor }}
                   >
+                    {book.image ? (
+                      <img 
+                        src={book.image} 
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.parentElement!.style.backgroundColor = book.coverColor;
+                        }}
+                      />
+                    ) : null}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                     <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
                       #{book.rank.toLocaleString()}
                     </div>
-                    <div className="absolute bottom-3 left-3 right-3 text-white font-bold text-sm leading-tight shadow-black drop-shadow-md">
-                      {book.title}
-                    </div>
+                    {!book.image && (
+                      <div className="absolute bottom-3 left-3 right-3 text-white font-bold text-sm leading-tight shadow-black drop-shadow-md">
+                        {book.title}
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs font-medium truncate text-foreground">{book.title}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{book.author}</p>
