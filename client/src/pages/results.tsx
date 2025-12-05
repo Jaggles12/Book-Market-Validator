@@ -1,7 +1,8 @@
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/MobileLayout";
 import { useEffect, useState } from "react";
-import { validateBookIdea, type MarketAnalysis } from "@/lib/mock-validator";
+import { validateBookIdea } from "@/lib/api-validator";
+import type { MarketAnalysis } from "@/lib/mock-validator";
 import { motion } from "framer-motion";
 import { 
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
