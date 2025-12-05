@@ -1,0 +1,736 @@
+// index.js
+// Book Idea Validator: Rainforest + OpenAI
+// Cluster A + Fiction Fix + Verdict Tuning + Market Signal Framework + Cluster B
+
+// Usage:
+//   node index.js "gratitude journal"
+//   node index.js "cozy fantasy novel with Christian themes"
+//   node index.js "30-day devotional for burned-out pastors" --debug --save
+//   node index.js "beginner startup guide for Christian entrepreneurs" --save
+
+const axios = require("axios");
+const OpenAI = require("openai");
+const fs = require("fs");
+const path = require("path");
+
+const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+if (!RAINFOREST_API_KEY) {
+  console.error("❌ Missing RAINFOREST_API_KEY in Replit Env Vars.");
+  process.exit(1);
+}
+if (!OPENAI_API_KEY) {
+  console.error("❌ Missing OPENAI_API_KEY in Replit Env Vars.");
+  process.exit(1);
+}
+
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+// -------- CLI INPUT & FLAGS --------
+
+const rawArgs = process.argv.slice(2);
+const debug = rawArgs.includes("--debug");
+const saveToFile = rawArgs.includes("--save");
+
+const ideaWords = rawArgs.filter((a) => a !== "--debug" && a !== "--save");
+const idea = ideaWords.join(" ");
+
+if (!idea) {
+  console.log(
+    'Usage: node index.js "your book niche or idea" [--debug] [--save]\n' +
+      'Example: node index.js "30-day devotional for burned-out pastors" --debug --save'
+  );
+  process.exit(0);
+}
+
+// Simple slugify helper for filenames
+function slugify(text) {
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "report"
+  );
+}
+
+// -------- SIMPLE GENRE DETECTION --------
+
+function detectGenre(ideaText) {
+  const lower = ideaText.toLowerCase();
+  const genre = {
+    category: "nonfiction", // 'fiction' or 'nonfiction'
+    subtype: "general", // 'devotional', 'workbook', 'journal', 'fantasy', 'business', etc.
+  };
+
+  if (
+    lower.includes("novel") ||
+    lower.includes("fantasy") ||
+    lower.includes("romance") ||
+    lower.includes("thriller") ||
+    lower.includes("mystery") ||
+    lower.includes("sci-fi") ||
+    lower.includes("science fiction")
+  ) {
+    genre.category = "fiction";
+    if (lower.includes("fantasy")) genre.subtype = "fantasy";
+    else if (lower.includes("romance")) genre.subtype = "romance";
+    else if (lower.includes("mystery")) genre.subtype = "mystery";
+    else genre.subtype = "general_fiction";
+  } else if (lower.includes("devotional")) {
+    genre.subtype = "devotional";
+  } else if (lower.includes("journal")) {
+    genre.subtype = "journal";
+  } else if (lower.includes("workbook")) {
+    genre.subtype = "workbook";
+  } else if (lower.includes("bible study") || lower.includes("study guide")) {
+    genre.subtype = "study";
+  } else if (
+    lower.includes("startup") ||
+    lower.includes("entrepreneur") ||
+    lower.includes("business")
+  ) {
+    genre.subtype = "business";
+  } else if (
+    lower.includes("parent") ||
+    lower.includes("mom") ||
+    lower.includes("dad")
+  ) {
+    genre.subtype = "parenting";
+  } else if (
+    lower.includes("trauma") ||
+    lower.includes("anxiety") ||
+    lower.includes("healing")
+  ) {
+    genre.subtype = "mental_health";
+  }
+
+  return genre;
+}
+
+const genreHint = detectGenre(idea);
+
+// -------- RAINFOREST HELPERS --------
+
+async function fetchSearchResults(searchTerm) {
+  const params = {
+    api_key: RAINFOREST_API_KEY,
+    type: "search",
+    amazon_domain: "amazon.com",
+    search_term: searchTerm,
+    number_of_results: 30,
+    sort_by: "bestseller_rankings",
+    // ❌ remove include_fields for now – it's likely causing empty search_results
+    // If we want to reintroduce it later, we can test carefully.
+  };
+
+  const response = await axios.get("https://api.rainforestapi.com/request", {
+    params,
+  });
+
+  return response.data;
+}
+
+function normalizeBooks(data) {
+  const results = data.search_results || [];
+
+  const books = results.map((r) => {
+    const priceValue =
+      r.price && typeof r.price.value === "number" ? r.price.value : null;
+
+    let rank = null;
+    if (r.bestsellers_rank && typeof r.bestsellers_rank.rank === "number") {
+      rank = r.bestsellers_rank.rank;
+    } else if (typeof r.sales_rank === "number") {
+      rank = r.sales_rank;
+    }
+
+    let publicationDate = null;
+    if (r.publication_date) {
+      publicationDate = r.publication_date; // often a string like "January 1, 2023"
+    }
+
+    const authors =
+      r.authors && Array.isArray(r.authors)
+        ? r.authors
+            .map((a) => (typeof a.name === "string" ? a.name : null))
+            .filter(Boolean)
+        : [];
+
+    return {
+      title: r.title,
+      asin: r.asin,
+      link: r.link,
+      rating: r.rating || 0,
+      reviews: r.ratings_total || r.reviews_total || 0,
+      price: priceValue,
+      rank,
+      publicationDate,
+      authors,
+    };
+  });
+
+  return books.filter((b) => b.title);
+}
+
+// -------- ANALYSIS LAYER (with Market Signal Framework) --------
+
+function computeMarketSnapshot(books, genreHint) {
+  if (books.length === 0) {
+    return {
+      totalBooks: 0,
+      avgRating: 0,
+      avgReviews: 0,
+      priceMin: null,
+      priceMax: null,
+      priceMedian: null,
+      priceOutlierCount: 0,
+      hotness: "unknown",
+      strongCompetitors: 0,
+      midCompetitors: 0,
+      lowReviewBooks: 0,
+      veryStrongBSRCount: 0,
+      strongBSRCount: 0,
+      moderateBSRCount: 0,
+      weakBSRCount: 0,
+      bestRank: null,
+      worstRank: null,
+      cheapBookShare: 0,
+      premiumBookShare: 0,
+      evergreenSignal: false,
+      dominantAuthors: [],
+      uniqueAuthorCount: 0,
+      verdict: "RED",
+      verdictReason:
+        "No relevant books found — demand appears very low or keywords may need refining.",
+    };
+  }
+
+  const ratings = books.map((b) => b.rating || 0);
+  const reviews = books.map((b) => b.reviews || 0);
+  const pricesRaw = books
+    .map((b) => b.price)
+    .filter((p) => typeof p === "number" && p > 0);
+  const ranks = books.map((b) => b.rank).filter((r) => typeof r === "number");
+
+  const totalBooks = books.length;
+
+  const avgRating =
+    ratings.reduce((sum, r) => sum + r, 0) / (ratings.length || 1);
+  const avgReviews =
+    reviews.reduce((sum, r) => sum + r, 0) / (reviews.length || 1);
+
+  // --- PRICE ANALYSIS + OUTLIERS ---
+  let priceMin = null;
+  let priceMax = null;
+  let priceMedian = null;
+  let priceOutlierCount = 0;
+  let cheapBookShare = 0;
+  let premiumBookShare = 0;
+
+  if (pricesRaw.length > 0) {
+    const sorted = [...pricesRaw].sort((a, b) => a - b);
+
+    // treat top 10% as outliers if there are at least 10 prices
+    let trimmed = sorted;
+    if (sorted.length >= 10) {
+      const trimCount = Math.floor(sorted.length * 0.1);
+      trimmed = sorted.slice(0, sorted.length - trimCount);
+      priceOutlierCount = sorted.length - trimmed.length;
+    }
+
+    const len = trimmed.length;
+    priceMin = trimmed[0];
+    priceMax = trimmed[len - 1];
+
+    if (len === 1) {
+      priceMedian = trimmed[0];
+    } else if (len % 2 === 1) {
+      priceMedian = trimmed[(len - 1) / 2];
+    } else {
+      priceMedian = (trimmed[len / 2 - 1] + trimmed[len / 2]) / 2;
+    }
+
+    const cheapBooks = pricesRaw.filter((p) => p <= 2.99).length;
+    const premiumBooks = pricesRaw.filter((p) => p >= 15).length;
+    cheapBookShare = cheapBooks / pricesRaw.length;
+    premiumBookShare = premiumBooks / pricesRaw.length;
+  }
+
+  // --- BSR DISTRIBUTION ---
+  let veryStrongBSRCount = 0; // <= 10k
+  let strongBSRCount = 0; // 10k–100k
+  let moderateBSRCount = 0; // 100k–300k
+  let weakBSRCount = 0; // > 300k
+  let bestRank = null;
+  let worstRank = null;
+
+  if (ranks.length > 0) {
+    bestRank = Math.min(...ranks);
+    worstRank = Math.max(...ranks);
+
+    ranks.forEach((rank) => {
+      if (rank <= 10000) {
+        veryStrongBSRCount++;
+      } else if (rank <= 100000) {
+        strongBSRCount++;
+      } else if (rank <= 300000) {
+        moderateBSRCount++;
+      } else {
+        weakBSRCount++;
+      }
+    });
+  }
+
+  // --- HOTNESS (legacy, but still useful) ---
+  let hotness = "unknown";
+  if (bestRank !== null) {
+    if (bestRank <= 10000) hotness = "hot";
+    else if (bestRank <= 100000) hotness = "warm";
+    else hotness = "cool";
+  }
+
+  // --- COMPETITOR STRENGTH (existing logic) ---
+  const strongCompetitors = books.filter(
+    (b) => b.reviews >= 1000 && b.rating >= 4.3
+  ).length;
+
+  const midCompetitors = books.filter(
+    (b) => b.reviews >= 100 && b.reviews < 1000 && b.rating >= 4.0
+  ).length;
+
+  const lowReviewBooks = books.filter((b) => b.reviews < 50).length;
+
+  // NEW: oversaturation signal – lots of giants, almost no small books
+  const oversaturatedByGiants =
+    strongCompetitors >= 6 &&   // many big books
+    lowReviewBooks <= 3 &&      // almost no small players in top results
+    totalBooks >= 15;           // enough titles to call it a full-on niche
+
+  // --- AUTHOR DIVERSITY / DOMINANCE ---
+  const allAuthors = books.flatMap((b) => b.authors || []);
+  const authorFrequency = {};
+  allAuthors.forEach((a) => {
+    authorFrequency[a] = (authorFrequency[a] || 0) + 1;
+  });
+  const uniqueAuthorCount = Object.keys(authorFrequency).length;
+  const dominantAuthors = Object.entries(authorFrequency)
+    .filter(([_, count]) => count >= 3)
+    .map(([name, count]) => ({ name, count }));
+
+  const hasStrongAuthorDominance = dominantAuthors.length > 0;
+
+  // --- PUBLICATION RECENCY / EVERGREEN ---
+  const pubYears = books
+    .map((b) => {
+      if (!b.publicationDate) return null;
+      const d = new Date(b.publicationDate);
+      const year = d.getFullYear();
+      return isNaN(year) ? null : year;
+    })
+    .filter((y) => y !== null);
+
+  const currentYear = new Date().getFullYear();
+  const recentCount = pubYears.filter((y) => y >= currentYear - 1).length;
+  const midCount = pubYears.filter(
+    (y) => y >= currentYear - 4 && y <= currentYear - 2
+  ).length;
+  const oldCount = pubYears.filter((y) => y <= currentYear - 5).length;
+
+  const evergreenSignal =
+    recentCount > 0 && (midCount > 0 || oldCount > 0); // mix of new and older still selling
+
+  // --- VERDICT LOGIC (updated to your framework) ---
+
+  let verdict = "YELLOW";
+  let verdictReason =
+    "Mixed signals. Some demand and some competition — success depends on a clear angle.";
+
+  const isFiction = genreHint.category === "fiction";
+
+  // Shared demand indicators from market-signal framework
+  const strongDemandByBSR =
+    veryStrongBSRCount + strongBSRCount >= 3; // multiple books in 10k–100k band
+  const moderateDemandByBSR =
+    moderateBSRCount > 0 || strongBSRCount > 0 || veryStrongBSRCount > 0;
+  const veryWeakDemandByBSR =
+    veryStrongBSRCount + strongBSRCount + moderateBSRCount === 0;
+
+  const veryLowReviews = avgReviews < 20;
+  const goodReviewVolume = avgReviews >= 100;
+  const okReviewVolume = avgReviews >= 30;
+
+  const fewCompetitors = totalBooks < 5;
+  const modestCompetitors = totalBooks >= 5 && totalBooks < 10;
+  const healthyCompetitors = totalBooks >= 10 && totalBooks <= 30;
+  // (We only see up to 30 via API, so can't truly see 100–500+)
+
+  const cheapMarketDominated = cheapBookShare > 0.4;
+  const premiumPricingPresent = premiumBookShare >= 0.2; // at least ~20% premium
+
+  // FICTION LOGIC
+  if (isFiction) {
+    // RED: clearly weak or unwinnable
+    if (
+      (veryWeakDemandByBSR && veryLowReviews) || // no books ranking decently + no reviews
+      (cheapMarketDominated && veryLowReviews) // race to the bottom + no proof
+    ) {
+      verdict = "RED";
+      verdictReason =
+        "Fiction demand looks weak in this sample — low review volume and no clear bestsellers. This niche is not clearly proven.";
+    } else if (hasStrongAuthorDominance && !healthyCompetitors) {
+      verdict = "RED";
+      verdictReason =
+        "This fiction niche appears to be dominated by a small number of authors, making it hard for new writers to gain visibility.";
+    }
+    // GREEN: strong demand, space to play, not dominated
+    else if (
+      strongDemandByBSR &&
+      okReviewVolume &&
+      (healthyCompetitors || modestCompetitors) &&
+      !hasStrongAuthorDominance &&
+      !cheapMarketDominated
+    ) {
+      verdict = "GREEN";
+      verdictReason =
+        "Demand is clearly validated by strong BSR and solid reviews, with multiple authors succeeding and no race-to-the-bottom pricing. A well-positioned novel or series can absolutely find readers here.";
+    }
+    // YELLOW: everything else with some signs of life
+    else if (moderateDemandByBSR || okReviewVolume) {
+      verdict = "YELLOW";
+      verdictReason =
+        "There is evidence of fiction demand, but it’s not overwhelming. You’ll need a clear hook, strong craft, and smart positioning to stand out.";
+    } else {
+      verdict = "RED";
+      verdictReason =
+        "Based on these results, this fiction niche is not clearly validated and may not be worth pursuing unless you already have a built-in audience.";
+    }
+    } else {
+      // NONFICTION LOGIC (devotionals, workbooks, business, parenting, etc.)
+
+      // RED: demand unproven or market looks unhealthy
+      if (
+        (veryLowReviews && fewCompetitors) || // hardly any books + no reviews
+        (veryWeakDemandByBSR && veryLowReviews) || // nothing ranking decently
+        (cheapMarketDominated && avgReviews < 50) // desperation pricing and weak proof
+      ) {
+        verdict = "RED";
+        verdictReason =
+          "Demand for this nonfiction niche does not appear clearly validated — few competitors, low reviews, or heavy reliance on very low pricing.";
+      } else if (hasStrongAuthorDominance && healthyCompetitors) {
+        verdict = "RED";
+        verdictReason =
+          "A small number of authors appear to dominate this nonfiction space, making it difficult for new books to break through purely on Amazon.";
+      } else if (oversaturatedByGiants) {
+        verdict = "RED";
+        verdictReason =
+          "This nonfiction niche is heavily saturated with many strong, high-review competitors and almost no smaller titles in the top results — it is effectively dominated by giants, making it very hard for a new book to break in on Amazon alone.";
+      }
+      // GREEN: strong, proven demand with room
+      else if (
+        strongDemandByBSR &&
+        goodReviewVolume &&
+        (healthyCompetitors || modestCompetitors) &&
+        !cheapMarketDominated &&
+        !hasStrongAuthorDominance
+      ) {
+        verdict = "GREEN";
+        verdictReason =
+          "This nonfiction niche shows strong demand: multiple books ranking well, solid review volume, and diverse authors performing — with no obvious race-to-the-bottom pricing. A well-executed, differentiated book has strong potential here.";
+      }
+      // GREEN (evergreen hot category)
+      else if (
+        hotness === "hot" &&
+        okReviewVolume &&
+        evergreenSignal &&
+        !cheapMarketDominated
+      ) {
+        verdict = "GREEN";
+        verdictReason =
+          "The category appears hot and evergreen with both newer and older books performing. A focused, well-positioned nonfiction book can ride durable demand here.";
+      }
+      // YELLOW: mixed signals, but there is something
+      else {
+        verdict = "YELLOW";
+        verdictReason =
+          "Demand is present but not overwhelming, or the competitive landscape is uneven. Success will depend on sharp niche focus, format choice, and superior execution.";
+      }
+    }
+
+
+  return {
+    totalBooks,
+    avgRating,
+    avgReviews,
+    priceMin,
+    priceMax,
+    priceMedian,
+    priceOutlierCount,
+    hotness,
+    strongCompetitors,
+    midCompetitors,
+    lowReviewBooks,
+    veryStrongBSRCount,
+    strongBSRCount,
+    moderateBSRCount,
+    weakBSRCount,
+    bestRank,
+    worstRank,
+    cheapBookShare,
+    premiumBookShare,
+    evergreenSignal,
+    dominantAuthors,
+    uniqueAuthorCount,
+    oversaturatedByGiants,
+    verdict,
+    verdictReason,
+  };
+}
+
+function analyzeGapsAndKeywords(books, genreHint) {
+  const titles = books.map((b) => b.title.toLowerCase());
+  const subtitles = []; // could add later
+  const corpus = titles.concat(subtitles);
+
+  const indicators = {
+    women: /women|woman|her|she\b/,
+    men: /\bmen|man|him|husband\b/,
+    kids: /\bkid|child|children|boy|girl|teen|youth\b/,
+    moms: /\bmom|mother|mama\b/,
+    dads: /\bdad|father\b/,
+    couples: /\bcouple|marriage|husband and wife\b/,
+    pastors: /\bpastor|ministry|leader\b/,
+    anxiety: /\banxiety|stress|worry\b/,
+    trauma: /\btrauma|grief|loss|healing\b/,
+    time_30: /30[- ]?day|thirty[- ]?day/,
+    time_90: /90[- ]?day|ninety[- ]?day/,
+    time_365: /365[- ]?day|one year|year of/,
+    devotional: /\bdevotional|devotions|daily devotional\b/,
+    journal: /\bjournal|notebook|diary\b/,
+    workbook: /\bworkbook|guide|study\b/,
+  };
+
+  const presence = {};
+  for (const [key, regex] of Object.entries(indicators)) {
+    presence[key] = corpus.some((t) => regex.test(t));
+  }
+
+  // Simple frequency counter for single words
+  const freq = {};
+  corpus.forEach((t) => {
+    t.replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+      .forEach((w) => {
+        freq[w] = (freq[w] || 0) + 1;
+      });
+  });
+
+  // Strip devotional-related words from FICTION frequency to avoid suggestions.
+  if (genreHint.category === "fiction") {
+    delete freq["devotional"];
+    delete freq["devotions"];
+    delete freq["devotional-style"];
+  }
+
+  const commonKeywords = Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([word, count]) => ({ word, count }));
+
+  // Candidate white-space angles. For fiction, strip out time-bound angles completely.
+  let candidateAngles = [
+    { label: "for men", key: "men" },
+    { label: "for women", key: "women" },
+    { label: "for kids/teens", key: "kids" },
+    { label: "for moms", key: "moms" },
+    { label: "for dads", key: "dads" },
+    { label: "for couples/marriage", key: "couples" },
+    { label: "for pastors/leaders", key: "pastors" },
+    { label: "anxiety + core theme", key: "anxiety" },
+    { label: "trauma/grief + core theme", key: "trauma" },
+    { label: "30-day format", key: "time_30" },
+    { label: "90-day format", key: "time_90" },
+    { label: "365-day format", key: "time_365" },
+  ];
+
+  if (genreHint.category === "fiction") {
+    candidateAngles = candidateAngles.filter(
+      (c) => !["time_30", "time_90", "time_365"].includes(c.key)
+    );
+  }
+
+  const whiteSpaceSuggestions = candidateAngles
+    .filter((c) => !presence[c.key])
+    .map((c) => c.label);
+
+  return {
+    presence,
+    commonKeywords,
+    whiteSpaceSuggestions,
+  };
+}
+
+// -------- OPENAI REPORT GENERATION --------
+
+async function generateReport(idea, snapshot, gapData, books, genreHint) {
+  const topBooks = books.slice(0, 8).map((b) => ({
+    title: b.title,
+    rating: b.rating,
+    reviews: b.reviews,
+    price: b.price,
+    rank: b.rank,
+  }));
+
+  const fictionFormatRule =
+    genreHint.category === "fiction"
+      ? "For FICTION projects, you MUST NOT suggest devotional, workbook, or journal formats, and you MUST NOT suggest 30-, 60-, 90-, or 365-day reading plans. Stick to normal novel/series structures (chapters, acts, arcs). Do not recommend 'devotional' as a keyword or category for fiction projects unless the user explicitly included the word 'devotional' in the original idea."
+      : "For NONFICTION projects, you may suggest workbook, journal, or devotional formats and time-bounded programs like 30/90/365 days when appropriate.";
+
+  const prompt = `
+You are a strategic publishing coach for independent authors. A user is considering writing a book with this niche:
+
+BOOK IDEA: "${idea}"
+
+You are given:
+1) A MARKET SNAPSHOT (aggregated stats from Amazon search results for books in this niche).
+2) GAP & KEYWORD DATA (what appears in competitor titles, and some white-space suggestions).
+3) A SAMPLE OF TOP COMPETING BOOKS (title, rating, reviews, price, rank).
+4) A simple GENRE HINT inferred from the idea text.
+
+GENRE HINT:
+${JSON.stringify(genreHint, null, 2)}
+
+IMPORTANT STYLE RULES:
+- When you talk about gaps, do NOT claim that a type of book "does not exist." Instead, say things like "I did not see many X in these results," or "X looks underrepresented based on this sample."
+- Remember that search results are only a sample of the full market.
+- ${fictionFormatRule}
+- Interpret the verdict labels as follows:
+  - GREEN: Demand is clearly validated and there is meaningful room for a differentiated new book. This is a strong opportunity.
+  - YELLOW: Demand is validated, but competition or signals mean the author must tweak their approach, niche, or format to stand out.
+  - RED: Demand is not clearly validated OR the niche appears so dominated or weak that it is likely not worth pursuing for most authors.
+- Keep your tone clear, practical, and energizing. Avoid fluff and repetition.
+
+Your job: produce a concise but motivating report in MARKDOWN with EXACTLY these sections and nothing else:
+
+# 1. MARKET SNAPSHOT
+- Summarize demand and category "temperature" in 2–4 bullet points.
+- Give a simple verdict: **GREEN**, **YELLOW**, or **RED**, echoing the given verdict and reason in your own words.
+- Mention typical pricing and quality expectations briefly, and you may note if there seem to be a few high-price outliers.
+
+# 2. COMPETITION & GAPS
+- 3–5 bullet points describing the competitive landscape (strong vs mid-tier vs new books).
+- 3–5 specific "gap opportunities" based on what's underrepresented or missing in THESE SEARCH RESULTS (not the entire universe).
+
+# 3. KEYWORD & CATEGORY STRATEGY
+- List 5–10 "Core keywords" authors should include in titles/subtitles and descriptions.
+- List 3–7 "White space keyword ideas" drawn from the white-space suggestions (you may rephrase them to be clearer).
+- Suggest 3–5 likely KDP categories or category themes (no need for exact BISAC codes, just descriptive labels).
+- For FICTION, avoid recommending 'devotional' as a keyword or category unless the idea explicitly used that word.
+
+# 4. POSITIONING & TITLE IDEAS
+- Start with a single bolded line: **Ideal Reader:** one sentence that describes who this book is for (age, situation, spiritual/emotional or business state).
+- Then, in 2–3 sentences, write a **positioning statement** for a differentiated book in this niche.
+- Give 3–5 bullet "Differentiation angles" (short, punchy).
+- Provide 5 strong **title + subtitle** combinations tailored to this idea and the gaps you identified.
+
+# 5. OUTLINE BLUEPRINT
+- Propose a simple structure for the book (e.g., "90-day devotional," "12-week workbook," "10-12 chapter novel") appropriate to this niche and genre hint.
+- Include a bullet list with 8–12 high-level sections/chapters or weekly themes.
+- For devotional/journal/workbook style (NONFICTION ONLY), also give 2–3 example daily entry prompts or patterns (e.g., a sample day's heading and what appears on the page).
+
+The goal is that the author finishes reading and feels: "I know if this idea is worth pursuing AND I know exactly how to start."
+
+Here is the raw data for you to use:
+
+MARKET SNAPSHOT:
+${JSON.stringify(snapshot, null, 2)}
+
+GAP & KEYWORD DATA:
+${JSON.stringify(gapData, null, 2)}
+
+TOP COMPETING BOOKS:
+${JSON.stringify(topBooks, null, 2)}
+`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a sharp, no-fluff publishing strategist helping authors decide if and how to write a commercially viable book.",
+      },
+      { role: "user", content: prompt },
+    ],
+  });
+
+  return completion.choices[0].message.content;
+}
+
+// -------- MAIN --------
+
+async function main() {
+  console.log(`🔍 Checking niche: "${idea}" on Amazon books...\n`);
+
+  try {
+    const data = await fetchSearchResults(idea);
+    const books = normalizeBooks(data);
+
+    // ✅ NEW: if no books, bail early with an honest message
+    if (!books || books.length === 0) {
+      console.log(
+        "# 1. MARKET SNAPSHOT\n" +
+          "- No books were returned for this keyword in the current API sample.\n" +
+          "- This usually means either the keyword is too broad/odd, or there was a temporary issue with the Amazon/Rainforest search.\n" +
+          "- Verdict: **RED (NO DATA)** — Treat this as “insufficient data,” not proof that the niche is empty. Try:\n" +
+          "  - Refining your niche phrase (e.g., 'gratitude journal for moms', '90-day gratitude journal').\n" +
+          "  - Running a manual Amazon search to double-check reality.\n"
+      );
+      return;
+    }
+
+    const snapshot = computeMarketSnapshot(books, genreHint);
+    const gapData = analyzeGapsAndKeywords(books, genreHint);
+
+    if (debug) {
+      console.log("=== RAW SNAPSHOT (debug) ===");
+      console.log(snapshot);
+      console.log("\n=== GENRE HINT (debug) ===");
+      console.log(genreHint);
+      console.log("\nGenerating strategic report...\n");
+    }
+
+    const report = await generateReport(
+      idea,
+      snapshot,
+      gapData,
+      books,
+      genreHint
+    );
+
+    console.log(report);
+
+    if (saveToFile) {
+      const slug = slugify(idea);
+      const dir = path.join(__dirname, "reports");
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir);
+      }
+      const filename = path.join(dir, `${slug}.md`);
+      fs.writeFileSync(filename, report, "utf8");
+      console.log(`\n📝 Report saved to ${filename}`);
+    }
+  } catch (err) {
+    console.error("❌ Error:");
+    if (err.response) {
+      console.error("Status:", err.response.status);
+      console.error("Data:", err.response.data);
+    } else {
+      console.error(err.message);
+    }
+  }
+}
+
+main();
