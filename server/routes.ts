@@ -333,6 +333,84 @@ function detectGenre(ideaText: string) {
   return genre;
 }
 
+// Generate a human-friendly genre/niche label
+function generateFriendlyGenreLabel(
+  searchTerm: string | null, 
+  genre: { category: string; subtype: string },
+  originalIdea: string
+): string {
+  // Priority 1: Use the extracted searchTerm if it's meaningful
+  if (searchTerm && searchTerm.length > 3) {
+    // Capitalize first letter of each word for display
+    return searchTerm
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+  
+  // Priority 2: Create a human-readable version from genre subtype
+  const subtypeLabels: Record<string, string> = {
+    // Fiction
+    fantasy: "Fantasy Fiction",
+    romance: "Romance Fiction",
+    mystery: "Mystery & Suspense",
+    thriller: "Thriller",
+    horror: "Horror Fiction",
+    science_fiction: "Science Fiction",
+    general_fiction: "General Fiction",
+    // Religion/Spirituality
+    devotional: "Daily Devotional",
+    bible_study: "Bible Study",
+    prayer: "Prayer & Meditation",
+    spiritual_growth: "Spiritual Growth",
+    christian_living: "Christian Living",
+    christian: "Christian/Religious",
+    // Self-Help
+    habits: "Habits & Productivity",
+    mindset: "Mindset & Success",
+    personal_development: "Personal Development",
+    self_help: "Self-Help",
+    // Health
+    mental_health: "Mental Health & Wellness",
+    fitness: "Fitness & Exercise",
+    nutrition: "Nutrition & Diet",
+    wellness: "Health & Wellness",
+    // Business
+    entrepreneurship: "Entrepreneurship",
+    leadership: "Leadership & Management",
+    marketing: "Marketing & Sales",
+    career_development: "Career Development",
+    business: "Business & Finance",
+    // Family
+    parenting: "Parenting & Family",
+    marriage: "Marriage & Relationships",
+    relationships: "Relationships",
+    family: "Family Life",
+    // Education
+    learning: "Education & Learning",
+    // Finance
+    investing: "Investing & Wealth",
+    personal_finance: "Personal Finance",
+    finance: "Money & Finance",
+    // Other formats
+    journal: "Journal & Workbook",
+    workbook: "Interactive Workbook",
+    general: "General Nonfiction",
+  };
+  
+  // Check if we have a mapped label
+  const mappedLabel = subtypeLabels[genre.subtype];
+  if (mappedLabel) {
+    return mappedLabel;
+  }
+  
+  // Priority 3: Format the subtype nicely (replace underscores, capitalize)
+  return genre.subtype
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // Fetch product details to get BSR data
 async function fetchProductDetails(asin: string, apiKey: string): Promise<number | null> {
   try {
@@ -1325,10 +1403,18 @@ export async function registerRoutes(
       const demandLevel = analysis.bsrBuckets.veryStrong + analysis.bsrBuckets.strong > 5 ? "High" : "Medium";
       const competitionLevel = analysis.strongCompetitors > 5 ? "High" : analysis.strongCompetitors > 2 ? "Medium" : "Low";
       
+      // Generate human-friendly genre label
+      const friendlyGenreLabel = generateFriendlyGenreLabel(
+        isExtracted ? searchTerm : null,
+        genre,
+        idea
+      );
+
       const responseData = {
         verdict: analysis.verdict,
         verdictReason: analysis.verdictReason,
         genre,
+        friendlyGenreLabel,
         isDemo,
         searchTerm: isExtracted ? searchTerm : null,
         stats: {

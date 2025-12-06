@@ -51,6 +51,7 @@ export type MarketAnalysis = {
   verdict: "GREEN" | "YELLOW" | "RED";
   verdictReason: string;
   genre: { category: string; subtype: string };
+  friendlyGenreLabel?: string;
   isDemo?: boolean;
   searchTerm?: string | null;
   stats: {
@@ -338,10 +339,28 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
         ? `${genre.subtype} books` 
         : null;
 
+      // Generate friendly genre label for mock data
+      const subtypeLabels: Record<string, string> = {
+        fantasy: "Fantasy Fiction",
+        romance: "Romance Fiction",
+        mystery: "Mystery & Suspense",
+        business: "Business & Finance",
+        devotional: "Daily Devotional",
+        parenting: "Parenting & Family",
+        mental_health: "Mental Health & Wellness",
+        journal: "Journal & Workbook",
+        workbook: "Interactive Workbook",
+        general: "General Nonfiction",
+      };
+      const friendlyGenreLabel = mockSearchTerm 
+        ? mockSearchTerm.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+        : (subtypeLabels[genre.subtype] || genre.subtype.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
+
       resolve({
         verdict,
         verdictReason,
         genre,
+        friendlyGenreLabel,
         searchTerm: mockSearchTerm,
         stats: {
           avgPrice,

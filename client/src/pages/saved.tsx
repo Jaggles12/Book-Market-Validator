@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { 
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
-  Download, Clock, ChevronRight, FileText, Inbox, X
+  Download, Clock, ChevronRight, FileText, Inbox, X, Tag
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 
@@ -251,6 +251,17 @@ export default function SavedResults() {
                               <h4 className="font-medium text-foreground truncate mb-1">
                                 {result.niche}
                               </h4>
+                              {result.fullReportJson?.friendlyGenreLabel && (
+                                <div className="mb-2">
+                                  <span 
+                                    className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+                                    data-testid={`chip-niche-${result.id}`}
+                                  >
+                                    <Tag size={10} />
+                                    {result.fullReportJson.friendlyGenreLabel}
+                                  </span>
+                                </div>
+                              )}
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Clock size={12} />

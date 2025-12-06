@@ -245,9 +245,11 @@ export default function Validate() {
             </div>
             <div className="bg-white p-4 rounded-2xl border border-border/50 shadow-sm">
               <div className="flex items-center gap-2 text-muted-foreground mb-1 text-xs font-bold uppercase tracking-wide">
-                <Book size={14} /> Genre
+                <Book size={14} /> Niche
               </div>
-              <div className="text-lg font-bold text-foreground capitalize leading-none mt-1">{data.genre.subtype}</div>
+              <div className="text-sm font-bold text-foreground leading-tight mt-1" data-testid="text-friendly-genre">
+                {data.friendlyGenreLabel || data.genre.subtype.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              </div>
             </div>
           </motion.div>
 
