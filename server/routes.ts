@@ -648,8 +648,11 @@ export async function registerRoutes(
       // Step 4: Generate AI Suggestions
       const suggestions = await generateSuggestions(idea, genre, analysis, analysis.verdict);
 
-      // Return Full Analysis
-      res.json({
+      // Build the response object
+      const demandLevel = analysis.bsrBuckets.veryStrong + analysis.bsrBuckets.strong > 5 ? "High" : "Medium";
+      const competitionLevel = analysis.strongCompetitors > 5 ? "High" : analysis.strongCompetitors > 2 ? "Medium" : "Low";
+      
+      const responseData = {
         verdict: analysis.verdict,
         verdictReason: analysis.verdictReason,
         genre,
@@ -659,10 +662,8 @@ export async function registerRoutes(
             ? (analysis.priceMin + analysis.priceMax) / 2 
             : 0,
           avgRating: analysis.avgRating,
-          competitionLevel:
-            analysis.strongCompetitors > 5 ? "High" : analysis.strongCompetitors > 2 ? "Medium" : "Low",
-          demandLevel:
-            analysis.bsrBuckets.veryStrong + analysis.bsrBuckets.strong > 5 ? "High" : "Medium",
+          competitionLevel,
+          demandLevel,
         },
         detailedStats: {
           totalBooks: analysis.totalBooks,
@@ -691,7 +692,24 @@ export async function registerRoutes(
           publicationYear: b.publicationDate ? new Date(b.publicationDate).getFullYear() : new Date().getFullYear(),
         })),
         suggestions,
-      });
+      };
+
+      // Save to database
+      try {
+        await storage.saveResult({
+          niche: idea,
+          verdict: analysis.verdict,
+          demandScore: demandLevel,
+          competitionScore: competitionLevel,
+          keyInsights: suggestions.slice(0, 2).join(" | "),
+          fullReportJson: responseData,
+        });
+      } catch (saveError) {
+        console.error("Failed to save result to database:", saveError);
+      }
+
+      // Return Full Analysis
+      res.json(responseData);
     } catch (error: any) {
       console.error("Validation error:", error);
       
@@ -707,6 +725,60 @@ export async function registerRoutes(
         error: "Failed to validate book idea", 
         details: error.message 
       });
+    }
+  });
+
+  // Get all saved results
+  app.get("/api/saved-results", async (req, res) => {
+    try {
+      const results = await storage.getAllResults();
+      res.json(results);
+    } catch (error: any) {
+      console.error("Error fetching saved results:", error);
+      res.status(500).json({ error: "Failed to fetch saved results" });
+    }
+  });
+
+  // Get a single saved result by ID
+  app.get("/api/saved-results/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await storage.getResultById(id);
+      if (!result) {
+        return res.status(404).json({ error: "Result not found" });
+      }
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error fetching saved result:", error);
+      res.status(500).json({ error: "Failed to fetch saved result" });
+    }
+  });
+
+  // Export saved results as CSV
+  app.get("/api/saved-results/export/csv", async (req, res) => {
+    try {
+      const results = await storage.getAllResults();
+      
+      const sanitizeForCSV = (value: string): string => {
+        let sanitized = value.replace(/"/g, '""');
+        sanitized = sanitized.replace(/[\r\n]+/g, ' ');
+        if (/^[=+\-@\t\r]/.test(sanitized)) {
+          sanitized = "'" + sanitized;
+        }
+        return sanitized;
+      };
+      
+      const csvHeader = "id,niche,verdict,demandScore,competitionScore,createdAt\n";
+      const csvRows = results.map(r => 
+        `"${sanitizeForCSV(r.id)}","${sanitizeForCSV(r.niche)}","${sanitizeForCSV(r.verdict)}","${sanitizeForCSV(r.demandScore)}","${sanitizeForCSV(r.competitionScore)}","${r.createdAt.toISOString()}"`
+      ).join("\n");
+      
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=book-validation-results.csv");
+      res.send(csvHeader + csvRows);
+    } catch (error: any) {
+      console.error("Error exporting CSV:", error);
+      res.status(500).json({ error: "Failed to export CSV" });
     }
   });
 

@@ -1,13 +1,22 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { type User, type InsertUser, type SavedResult, type InsertSavedResult, savedResults } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { eq, desc } from "drizzle-orm";
+import pg from "pg";
 
-// modify the interface with any CRUD methods
-// you might need
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+export const db = drizzle(pool);
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  saveResult(result: InsertSavedResult): Promise<SavedResult>;
+  getAllResults(): Promise<SavedResult[]>;
+  getResultById(id: string): Promise<SavedResult | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -32,6 +41,20 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id };
     this.users.set(id, user);
     return user;
+  }
+
+  async saveResult(result: InsertSavedResult): Promise<SavedResult> {
+    const [saved] = await db.insert(savedResults).values(result).returning();
+    return saved;
+  }
+
+  async getAllResults(): Promise<SavedResult[]> {
+    return await db.select().from(savedResults).orderBy(desc(savedResults.createdAt));
+  }
+
+  async getResultById(id: string): Promise<SavedResult | undefined> {
+    const [result] = await db.select().from(savedResults).where(eq(savedResults.id, id));
+    return result;
   }
 }
 

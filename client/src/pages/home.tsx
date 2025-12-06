@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { MobileLayout } from "@/components/MobileLayout";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp, Loader2 } from "lucide-react";
+import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp, Loader2, History } from "lucide-react";
 
 export default function Home() {
   const [idea, setIdea] = useState("");
@@ -49,8 +49,18 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-12 mt-4"
         >
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 text-primary shadow-sm">
-            <BookOpen size={24} strokeWidth={2.5} />
+          <div className="flex items-start justify-between mb-6">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
+              <BookOpen size={24} strokeWidth={2.5} />
+            </div>
+            <button
+              onClick={() => setLocation("/saved")}
+              className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-border shadow-sm text-sm font-medium text-foreground/80 hover:bg-gray-50 transition-colors"
+              data-testid="button-saved-results"
+            >
+              <History size={16} />
+              Saved
+            </button>
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground mb-3">
             Book Idea<br />
