@@ -963,12 +963,43 @@ interface TitleIdea {
   hook: string;
 }
 
+interface BlueprintChapter {
+  title: string;
+  purpose: string;
+  notes: string;
+}
+
+interface BlueprintSection {
+  title: string;
+  description: string;
+  chapters: BlueprintChapter[];
+}
+
+interface BlueprintConstraints {
+  word_count_target: number;
+  reading_level: string;
+  timeframe: string;
+}
+
+interface BlueprintStructure {
+  overview: string;
+  sections: BlueprintSection[];
+}
+
 interface BookBlueprint {
+  working_title: string;
+  subtitle: string;
+  core_promise: string;
+  ideal_reader: string;
+  differentiation: string;
   format: string;
-  totalDays: number;
-  sections: { name: string; days: string; theme: string }[];
-  dailyStructure: string[];
-  uniqueElements: string[];
+  constraints: BlueprintConstraints;
+  structure: BlueprintStructure;
+  voice_and_style: string;
+  comparable_titles: string;
+  positioning_notes: string;
+  primary_keywords: string[];
+  whitespace_keywords: string[];
 }
 
 interface DeepAnalysis {
@@ -1043,13 +1074,38 @@ Provide a comprehensive deep analysis in the following JSON structure. Be specif
   "whiteSpaceKeywords": ["5-8 underutilized keyword opportunities with less competition"],
   "suggestedCategories": ["3-5 Amazon categories where this book could rank well"],
   "bookBlueprint": {
-    "format": "Recommended format (30-day devotional, guide, workbook, etc.)",
-    "totalDays": 30,
-    "sections": [
-      {"name": "Section name", "days": "Days 1-7", "theme": "Section theme/focus"}
-    ],
-    "dailyStructure": ["Element 1", "Element 2 like scripture/quote", "Element 3 like reflection question"],
-    "uniqueElements": ["2-3 unique features to differentiate your book"]
+    "working_title": "One strong, memorable title",
+    "subtitle": "Concise subtitle that clarifies what the book does and for whom",
+    "core_promise": "One sentence: This book helps [ideal reader] go from [pain point] to [desired outcome] by [approach]",
+    "ideal_reader": "3-5 sentences describing demographics, psychographics, key struggles, and desired transformation",
+    "differentiation": "2-3 sentences explaining how this book stands out from competitors based on the market data",
+    "format": "1-2 sentences describing the book type (e.g., '30-day interactive devotional with daily readings and reflection prompts')",
+    "constraints": {
+      "word_count_target": 25000,
+      "reading_level": "Appropriate reading level for the audience",
+      "timeframe": "30 days, 8 chapters, 12-week study, etc."
+    },
+    "structure": {
+      "overview": "2-3 sentences summarizing how the book is organized and how the reader will progress",
+      "sections": [
+        {
+          "title": "Section Title",
+          "description": "1-2 sentences describing what this section covers",
+          "chapters": [
+            {
+              "title": "Chapter title",
+              "purpose": "1-2 sentences describing what this chapter accomplishes for the reader",
+              "notes": "Key topics, examples, or elements to include"
+            }
+          ]
+        }
+      ]
+    },
+    "voice_and_style": "2-3 sentences describing tone, voice, and style",
+    "comparable_titles": "2-4 bullet-like lines: 'Similar to Book X but with...'",
+    "positioning_notes": "2-3 sentences noting where this book sits in the market",
+    "primary_keywords": ["10-15 core niche phrases from coreKeywords"],
+    "whitespace_keywords": ["5-10 underutilized keyword opportunities"]
   },
   "titleIdeas": [
     {"title": "Main title", "subtitle": "Descriptive subtitle with keywords", "hook": "Why this title works"}
@@ -1155,23 +1211,61 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
         "Self-Help > Personal Transformation"
       ],
       bookBlueprint: {
-        format: "Comprehensive guide with practical exercises",
-        totalDays: 30,
-        sections: [
-          { name: "Foundation", days: "Days 1-7", theme: "Building core understanding" },
-          { name: "Development", days: "Days 8-21", theme: "Practical application and growth" },
-          { name: "Mastery", days: "Days 22-30", theme: "Advanced techniques and maintenance" }
+        working_title: `The ${idea.split(' ').slice(0, 3).join(' ')} Blueprint`,
+        subtitle: `A Practical Guide for ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Success`,
+        core_promise: `This book helps readers who struggle with ${idea} transform their approach through practical, actionable guidance over a structured program.`,
+        ideal_reader: `Adults 25-55 seeking personal or professional growth in ${idea}. They are self-motivated learners who value practical solutions over theory. They feel overwhelmed by information and need clear, step-by-step direction.`,
+        differentiation: `Unlike other books in this space, this guide combines theory with hands-on exercises, real-world case studies, and a structured daily format that ensures consistent progress.`,
+        format: "30-day structured guide with daily lessons, practical exercises, and reflection prompts",
+        constraints: {
+          word_count_target: 25000,
+          reading_level: "Adult popular nonfiction",
+          timeframe: "30 days"
+        },
+        structure: {
+          overview: "The book is organized into four progressive sections that build upon each other, taking the reader from foundational concepts through mastery.",
+          sections: [
+            {
+              title: "Foundation",
+              description: "Establishing core understanding and mindset shifts needed for success",
+              chapters: [
+                { title: "Understanding the Basics", purpose: "Introduce key concepts and set expectations", notes: "Core definitions, common misconceptions, success stories" },
+                { title: "Preparing for Change", purpose: "Help reader assess current state and set goals", notes: "Self-assessment exercises, goal-setting framework" }
+              ]
+            },
+            {
+              title: "Development",
+              description: "Building skills and applying core concepts through practice",
+              chapters: [
+                { title: "Core Techniques", purpose: "Teach the fundamental methods and approaches", notes: "Step-by-step instructions, examples, practice exercises" },
+                { title: "Overcoming Obstacles", purpose: "Address common challenges and how to navigate them", notes: "Troubleshooting tips, case studies, mindset shifts" }
+              ]
+            },
+            {
+              title: "Mastery",
+              description: "Advanced techniques and long-term success strategies",
+              chapters: [
+                { title: "Advanced Strategies", purpose: "Take skills to the next level with advanced concepts", notes: "Expert techniques, optimization tips, efficiency hacks" },
+                { title: "Sustaining Success", purpose: "Create lasting habits and maintain progress", notes: "Habit formation, accountability systems, review schedules" }
+              ]
+            }
+          ]
+        },
+        voice_and_style: "Warm, encouraging, and practical. Uses conversational language with clear explanations. Balances inspiration with actionable steps.",
+        comparable_titles: `Similar to popular ${genre.category} guides but with more structured daily format and hands-on exercises.`,
+        positioning_notes: `Positioned as a practical, accessible entry point for readers new to ${idea}, while offering enough depth for those looking to deepen their practice.`,
+        primary_keywords: [
+          idea.split(' ').slice(0, 3).join(' '),
+          `${genre.subtype} guide`,
+          `${genre.category} book`,
+          "practical tips",
+          "how to guide"
         ],
-        dailyStructure: [
-          "Key concept or principle",
-          "Real-world example or story",
-          "Practical exercise or action step",
-          "Reflection questions"
-        ],
-        uniqueElements: [
-          "Progress tracking checklists",
-          "Downloadable bonus resources",
-          "Community discussion prompts"
+        whitespace_keywords: [
+          `${idea} for beginners`,
+          `${idea} workbook`,
+          `${idea} journal`,
+          `simple ${genre.subtype}`
         ]
       },
       titleIdeas: [

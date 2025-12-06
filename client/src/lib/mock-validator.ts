@@ -19,14 +19,43 @@ export type TitleIdea = {
   hook?: string;
 };
 
+export type BlueprintChapter = {
+  title: string;
+  purpose: string;
+  notes: string;
+};
+
+export type BlueprintSection = {
+  title: string;
+  description: string;
+  chapters: BlueprintChapter[];
+};
+
+export type BlueprintConstraints = {
+  word_count_target: number;
+  reading_level: string;
+  timeframe: string;
+};
+
+export type BlueprintStructure = {
+  overview: string;
+  sections: BlueprintSection[];
+};
+
 export type BookBlueprint = {
-  format?: string;
-  recommendedLength?: string;
-  totalDays?: number;
-  sections?: { name: string; days?: number; theme?: string }[];
-  sectionThemes?: string[];
-  dailyStructure?: string[] | string;
-  uniqueElements?: string[];
+  working_title: string;
+  subtitle: string;
+  core_promise: string;
+  ideal_reader: string;
+  differentiation: string;
+  format: string;
+  constraints: BlueprintConstraints;
+  structure: BlueprintStructure;
+  voice_and_style: string;
+  comparable_titles: string;
+  positioning_notes: string;
+  primary_keywords: string[];
+  whitespace_keywords: string[];
 };
 
 export type DeepAnalysis = {
@@ -291,21 +320,51 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
           `Books > Reference > Journals & Workbooks`,
         ],
         bookBlueprint: {
-          format: "30-Day Guided Program",
-          totalDays: 30,
-          sections: [
-            { name: "Foundation Week", days: 7, theme: "Building core understanding" },
-            { name: "Implementation Phase", days: 14, theme: "Daily practice and habit formation" },
-            { name: "Integration Week", days: 7, theme: "Long-term sustainability" },
-            { name: "Bonus Resources", theme: "Templates, checklists, and references" },
-          ],
-          dailyStructure: ["Opening Quote", "Core Lesson (500 words)", "Reflection Questions", "Action Step", "Journal Prompt"],
-          uniqueElements: [
-            "Weekly milestone celebrations",
-            "Progress tracking charts",
-            "Community challenge prompts",
-            "Expert tip sidebars",
-          ],
+          working_title: `The 30-Day ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Blueprint`,
+          subtitle: `A Practical Guide for ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Success`,
+          core_promise: `This book helps readers who struggle with ${genre.subtype} transform their approach through practical, actionable guidance over a structured 30-day program.`,
+          ideal_reader: `Adults 25-55 seeking personal growth in ${genre.subtype}. Self-motivated learners who value practical solutions over theory. They feel overwhelmed by information and need clear, step-by-step direction.`,
+          differentiation: `Unlike other ${genre.subtype} books, this guide combines theory with hands-on exercises, real-world case studies, and a structured daily format that ensures consistent progress.`,
+          format: "30-day structured guide with daily lessons, practical exercises, and reflection prompts",
+          constraints: {
+            word_count_target: 25000,
+            reading_level: "Adult popular nonfiction",
+            timeframe: "30 days"
+          },
+          structure: {
+            overview: "The book is organized into four progressive sections that build upon each other, taking the reader from foundational concepts through mastery.",
+            sections: [
+              {
+                title: "Foundation Week",
+                description: "Building core understanding and mindset shifts",
+                chapters: [
+                  { title: "Understanding the Basics", purpose: "Introduce key concepts", notes: "Core definitions, success stories" },
+                  { title: "Preparing for Change", purpose: "Help reader assess and set goals", notes: "Self-assessment, goal-setting" }
+                ]
+              },
+              {
+                title: "Implementation Phase",
+                description: "Daily practice and habit formation",
+                chapters: [
+                  { title: "Core Techniques", purpose: "Teach fundamental methods", notes: "Step-by-step instructions" },
+                  { title: "Building Momentum", purpose: "Develop consistent practice", notes: "Daily routines, progress tracking" }
+                ]
+              },
+              {
+                title: "Integration Week",
+                description: "Long-term sustainability strategies",
+                chapters: [
+                  { title: "Advanced Strategies", purpose: "Take skills to next level", notes: "Expert techniques" },
+                  { title: "Sustaining Success", purpose: "Create lasting habits", notes: "Habit formation, review schedules" }
+                ]
+              }
+            ]
+          },
+          voice_and_style: "Warm, encouraging, and practical. Uses conversational language with clear explanations.",
+          comparable_titles: `Similar to popular ${genre.category} guides but with more structured daily format and hands-on exercises.`,
+          positioning_notes: `Positioned as a practical, accessible entry point for readers new to ${genre.subtype}.`,
+          primary_keywords: [genre.subtype, `${genre.subtype} book`, `${genre.category} guide`],
+          whitespace_keywords: [`${genre.subtype} for beginners`, `${genre.subtype} workbook`]
         },
         titleIdeas: [
           {

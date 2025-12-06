@@ -1,21 +1,50 @@
 import type { MarketAnalysis } from "./mock-validator";
 import { getSupabase } from "./supabase";
 
+export interface BlueprintChapter {
+  title: string;
+  purpose: string;
+  notes: string;
+}
+
+export interface BlueprintSection {
+  title: string;
+  description: string;
+  chapters: BlueprintChapter[];
+}
+
+export interface BlueprintConstraints {
+  word_count_target: number;
+  reading_level: string;
+  timeframe: string;
+}
+
+export interface BlueprintStructure {
+  overview: string;
+  sections: BlueprintSection[];
+}
+
+export interface BlueprintData {
+  working_title: string;
+  subtitle: string;
+  core_promise: string;
+  ideal_reader: string;
+  differentiation: string;
+  format: string;
+  constraints: BlueprintConstraints;
+  structure: BlueprintStructure;
+  voice_and_style: string;
+  comparable_titles: string;
+  positioning_notes: string;
+  primary_keywords: string[];
+  whitespace_keywords: string[];
+}
+
 export interface BookBlueprint {
   id: string;
   userId: string;
   validationId: string;
-  workingTitle: string;
-  readerAvatar: string;
-  primaryPromise: string;
-  coreProblem: string;
-  bigDifferentiator: string;
-  coreTopics: string;
-  contentShape: string;
-  targetLengthWords: number | null;
-  toneStyle: string;
-  compTitles: string;
-  positioningNotes: string;
+  blueprintJson: BlueprintData;
   createdAt: string;
   updatedAt: string;
 }

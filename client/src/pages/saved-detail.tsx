@@ -529,8 +529,8 @@ export default function SavedDetail() {
                 </motion.div>
               )}
 
-              {/* Book Blueprint & Title Ideas Card */}
-              {(data.deepAnalysis.bookBlueprint || (data.deepAnalysis.titleIdeas && data.deepAnalysis.titleIdeas.length > 0)) && (
+              {/* Book Blueprint Card */}
+              {data.deepAnalysis.bookBlueprint && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -542,103 +542,184 @@ export default function SavedDetail() {
                     <div className="h-8 w-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
                       <FileText size={16} />
                     </div>
-                    <h3 className="font-bold text-foreground">Book Blueprint & Title Ideas</h3>
+                    <h3 className="font-bold text-foreground">Book Blueprint</h3>
                   </div>
                   
-                  {data.deepAnalysis.bookBlueprint && (
-                    <div className="mb-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Recommended Structure</p>
-                      
-                      <div className="space-y-2 text-sm text-foreground/80">
-                        {(data.deepAnalysis.bookBlueprint.format || data.deepAnalysis.bookBlueprint.recommendedLength) && (
-                          <p>
-                            <span className="font-medium">Format:</span>{" "}
-                            {data.deepAnalysis.bookBlueprint.format || data.deepAnalysis.bookBlueprint.recommendedLength}
-                            {data.deepAnalysis.bookBlueprint.totalDays && ` (${data.deepAnalysis.bookBlueprint.totalDays} days)`}
-                          </p>
+                  <div className="space-y-4">
+                    {data.deepAnalysis.bookBlueprint.working_title && (
+                      <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+                        <p className="font-bold text-lg text-foreground">{data.deepAnalysis.bookBlueprint.working_title}</p>
+                        {data.deepAnalysis.bookBlueprint.subtitle && (
+                          <p className="text-sm text-muted-foreground mt-1">{data.deepAnalysis.bookBlueprint.subtitle}</p>
                         )}
-                        
-                        {data.deepAnalysis.bookBlueprint.sections && data.deepAnalysis.bookBlueprint.sections.length > 0 && (
-                          <div>
-                            <span className="font-medium">Sections:</span>
-                            <ul className="mt-1 ml-4 space-y-1">
-                              {data.deepAnalysis.bookBlueprint.sections.map((section: any, i: number) => (
-                                <li key={i} className="flex gap-2">
-                                  <span className="text-orange-500">•</span>
-                                  <span>
-                                    {section.name}
-                                    {section.days && ` (${section.days} days)`}
-                                    {section.theme && ` – ${section.theme}`}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        
-                        {data.deepAnalysis.bookBlueprint.sectionThemes && data.deepAnalysis.bookBlueprint.sectionThemes.length > 0 && (
-                          <div>
-                            <span className="font-medium">Section Themes:</span>
-                            <ul className="mt-1 ml-4 space-y-1">
-                              {data.deepAnalysis.bookBlueprint.sectionThemes.map((theme: string, i: number) => (
-                                <li key={i} className="flex gap-2">
-                                  <span className="text-orange-500">•</span>
-                                  <span>{theme}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        
-                        {data.deepAnalysis.bookBlueprint.dailyStructure && (
-                          <div className="p-3 bg-orange-50 rounded-xl">
-                            <span className="font-medium text-orange-700">Daily Structure:</span>{" "}
-                            <span className="text-orange-900">
-                              {Array.isArray(data.deepAnalysis.bookBlueprint.dailyStructure) 
-                                ? data.deepAnalysis.bookBlueprint.dailyStructure.join(" → ")
-                                : data.deepAnalysis.bookBlueprint.dailyStructure}
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.core_promise && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Core Promise</p>
+                        <p className="text-sm text-foreground/90 p-3 bg-green-50 rounded-xl border border-green-100">
+                          {data.deepAnalysis.bookBlueprint.core_promise}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.ideal_reader && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Ideal Reader</p>
+                        <p className="text-sm text-foreground/80">{data.deepAnalysis.bookBlueprint.ideal_reader}</p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.differentiation && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Differentiation</p>
+                        <p className="text-sm text-foreground/80">{data.deepAnalysis.bookBlueprint.differentiation}</p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.format && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Format</p>
+                        <p className="text-sm text-foreground/80">{data.deepAnalysis.bookBlueprint.format}</p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.constraints && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Constraints</p>
+                        <div className="flex flex-wrap gap-2">
+                          {data.deepAnalysis.bookBlueprint.constraints.word_count_target && (
+                            <span className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-200">
+                              {data.deepAnalysis.bookBlueprint.constraints.word_count_target.toLocaleString()} words
                             </span>
+                          )}
+                          {data.deepAnalysis.bookBlueprint.constraints.reading_level && (
+                            <span className="px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full border border-purple-200">
+                              {data.deepAnalysis.bookBlueprint.constraints.reading_level}
+                            </span>
+                          )}
+                          {data.deepAnalysis.bookBlueprint.constraints.timeframe && (
+                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-full border border-indigo-200">
+                              {data.deepAnalysis.bookBlueprint.constraints.timeframe}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.structure && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Book Structure</p>
+                        {data.deepAnalysis.bookBlueprint.structure.overview && (
+                          <p className="text-sm text-foreground/80 mb-3">{data.deepAnalysis.bookBlueprint.structure.overview}</p>
+                        )}
+                        {data.deepAnalysis.bookBlueprint.structure.sections && data.deepAnalysis.bookBlueprint.structure.sections.length > 0 && (
+                          <div className="space-y-3">
+                            {data.deepAnalysis.bookBlueprint.structure.sections.map((section: any, i: number) => (
+                              <div key={i} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                <p className="font-semibold text-sm text-foreground">{section.title}</p>
+                                {section.description && (
+                                  <p className="text-xs text-muted-foreground mt-1">{section.description}</p>
+                                )}
+                                {section.chapters && section.chapters.length > 0 && (
+                                  <ul className="mt-2 space-y-1.5">
+                                    {section.chapters.map((chapter: any, j: number) => (
+                                      <li key={j} className="flex gap-2 text-xs text-foreground/80">
+                                        <span className="text-orange-500 font-bold">•</span>
+                                        <div>
+                                          <span className="font-medium">{chapter.title}</span>
+                                          {chapter.purpose && <span className="text-muted-foreground"> — {chapter.purpose}</span>}
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         )}
-                        
-                        {data.deepAnalysis.bookBlueprint.uniqueElements && data.deepAnalysis.bookBlueprint.uniqueElements.length > 0 && (
-                          <div>
-                            <span className="font-medium">Unique Elements:</span>
-                            <ul className="mt-1 ml-4 space-y-1">
-                              {data.deepAnalysis.bookBlueprint.uniqueElements.map((element: string, i: number) => (
-                                <li key={i} className="flex gap-2">
-                                  <span className="text-orange-500">•</span>
-                                  <span>{element}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.voice_and_style && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Voice & Style</p>
+                        <p className="text-sm text-foreground/80">{data.deepAnalysis.bookBlueprint.voice_and_style}</p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.comparable_titles && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Comparable Titles</p>
+                        <p className="text-sm text-foreground/80 whitespace-pre-line">{data.deepAnalysis.bookBlueprint.comparable_titles}</p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.positioning_notes && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Positioning</p>
+                        <p className="text-sm text-foreground/80">{data.deepAnalysis.bookBlueprint.positioning_notes}</p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.primary_keywords && data.deepAnalysis.bookBlueprint.primary_keywords.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Primary Keywords</p>
+                        <div className="flex flex-wrap gap-2">
+                          {data.deepAnalysis.bookBlueprint.primary_keywords.map((kw: string, i: number) => (
+                            <span key={i} className="px-2.5 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-full border border-green-200">
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.whitespace_keywords && data.deepAnalysis.bookBlueprint.whitespace_keywords.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">White Space Keywords</p>
+                        <div className="flex flex-wrap gap-2">
+                          {data.deepAnalysis.bookBlueprint.whitespace_keywords.map((kw: string, i: number) => (
+                            <span key={i} className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200">
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+              
+              {/* Title Ideas Card */}
+              {data.deepAnalysis.titleIdeas && data.deepAnalysis.titleIdeas.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.42 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-5"
+                  data-testid="card-title-ideas"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <Sparkles size={16} />
+                    </div>
+                    <h3 className="font-bold text-foreground">Alternative Title Ideas</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {data.deepAnalysis.titleIdeas.slice(0, 5).map((idea: any, i: number) => (
+                      <div key={i} className="p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+                        <p className="font-bold text-foreground text-sm">{idea.title}</p>
+                        {idea.subtitle && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{idea.subtitle}</p>
+                        )}
+                        {idea.hook && (
+                          <p className="text-xs text-orange-600 mt-1 italic">"{idea.hook}"</p>
                         )}
                       </div>
-                    </div>
-                  )}
-                  
-                  {data.deepAnalysis.titleIdeas && data.deepAnalysis.titleIdeas.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Sparkles size={14} className="text-orange-500" />
-                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Title Ideas</p>
-                      </div>
-                      <div className="space-y-3">
-                        {data.deepAnalysis.titleIdeas.slice(0, 5).map((idea: any, i: number) => (
-                          <div key={i} className="p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
-                            <p className="font-bold text-foreground text-sm">{idea.title}</p>
-                            {idea.subtitle && (
-                              <p className="text-xs text-muted-foreground mt-0.5">{idea.subtitle}</p>
-                            )}
-                            {idea.hook && (
-                              <p className="text-xs text-orange-600 mt-1 italic">"{idea.hook}"</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </motion.div>
               )}
 
