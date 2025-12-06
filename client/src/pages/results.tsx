@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { 
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
   BarChart3, Users, DollarSign, Book, TrendingUp, 
-  Activity, Award, AlertCircle, Layers
+  Activity, Award, AlertCircle, Layers, FlaskConical
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -82,6 +82,16 @@ export default function Validate() {
           </button>
           <h1 className="font-semibold text-lg truncate flex-1">{query}</h1>
         </div>
+
+        {data.isDemo && (
+          <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3" data-testid="banner-demo-mode">
+            <FlaskConical className="text-amber-600 shrink-0" size={20} />
+            <div>
+              <p className="text-sm font-medium text-amber-800">Demo Mode</p>
+              <p className="text-xs text-amber-600">Using sample data. Real market data requires API credits.</p>
+            </div>
+          </div>
+        )}
 
         <div className="p-6 space-y-6">
           

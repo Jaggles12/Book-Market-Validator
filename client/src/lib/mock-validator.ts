@@ -17,6 +17,7 @@ export type MarketAnalysis = {
   verdict: "GREEN" | "YELLOW" | "RED";
   verdictReason: string;
   genre: { category: string; subtype: string };
+  isDemo?: boolean;
   stats: {
     avgPrice: number;
     avgRating: number;

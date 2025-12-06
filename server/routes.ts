@@ -36,6 +36,49 @@ interface NormalizedBook {
   authors: string[];
 }
 
+// Demo mode flag - set to true when API quota is exceeded
+let demoMode = false;
+
+// Generate demo books based on search term to simulate real data
+function generateDemoBooks(searchTerm: string): NormalizedBook[] {
+  const baseBooks = [
+    { titlePrefix: "The Complete Guide to", reviews: 2847, rating: 4.6, rank: 1250, price: 14.99 },
+    { titlePrefix: "Mastering", reviews: 1523, rating: 4.4, rank: 3420, price: 12.99 },
+    { titlePrefix: "Essential", reviews: 892, rating: 4.5, rank: 8900, price: 9.99 },
+    { titlePrefix: "The Ultimate", reviews: 3201, rating: 4.7, rank: 890, price: 16.99 },
+    { titlePrefix: "Practical", reviews: 456, rating: 4.2, rank: 45000, price: 11.99 },
+    { titlePrefix: "Introduction to", reviews: 234, rating: 4.0, rank: 78000, price: 8.99 },
+    { titlePrefix: "Advanced", reviews: 678, rating: 4.3, rank: 23000, price: 19.99 },
+    { titlePrefix: "Simple", reviews: 1105, rating: 4.5, rank: 5600, price: 10.99 },
+    { titlePrefix: "The Power of", reviews: 4521, rating: 4.8, rank: 320, price: 15.99 },
+    { titlePrefix: "Secrets of", reviews: 789, rating: 4.1, rank: 34000, price: 13.99 },
+    { titlePrefix: "How to Master", reviews: 567, rating: 4.4, rank: 56000, price: 12.49 },
+    { titlePrefix: "The Art of", reviews: 2134, rating: 4.6, rank: 2100, price: 17.99 },
+    { titlePrefix: "Building Your", reviews: 345, rating: 4.0, rank: 89000, price: 9.49 },
+    { titlePrefix: "Transform Your Life with", reviews: 923, rating: 4.3, rank: 12000, price: 14.49 },
+    { titlePrefix: "The Beginner's Guide to", reviews: 1678, rating: 4.5, rank: 4500, price: 11.49 },
+  ];
+
+  const authors = [
+    "James Anderson", "Sarah Mitchell", "Michael Chen", "Emily Roberts",
+    "David Williams", "Jennifer Taylor", "Robert Brown", "Lisa Johnson",
+    "Christopher Lee", "Amanda Davis", "Matthew Wilson", "Rachel Garcia"
+  ];
+
+  return baseBooks.map((book, index) => ({
+    title: `${book.titlePrefix} ${searchTerm}`,
+    asin: `DEMO${String(index).padStart(6, '0')}`,
+    link: `https://amazon.com/dp/DEMO${String(index).padStart(6, '0')}`,
+    image: null,
+    rating: book.rating,
+    reviews: book.reviews,
+    price: book.price,
+    rank: book.rank,
+    publicationDate: `2024-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-15`,
+    authors: [authors[index % authors.length]],
+  }));
+}
+
 // Genre Detection
 function detectGenre(ideaText: string) {
   const lower = ideaText.toLowerCase();
@@ -133,85 +176,97 @@ async function fetchProductDetails(asin: string, apiKey: string): Promise<number
   }
 }
 
-// Fetch Amazon Data via Rainforest API
-async function fetchAmazonBooks(searchTerm: string): Promise<NormalizedBook[]> {
+// Fetch Amazon Data via Rainforest API (with demo mode fallback)
+async function fetchAmazonBooks(searchTerm: string): Promise<{ books: NormalizedBook[], isDemo: boolean }> {
   const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY;
   
-  if (!RAINFOREST_API_KEY) {
-    throw new Error("RAINFOREST_API_KEY not configured");
+  // If no API key or demo mode is active, return demo data
+  if (!RAINFOREST_API_KEY || demoMode) {
+    console.log("Using demo mode - returning sample book data");
+    return { books: generateDemoBooks(searchTerm), isDemo: true };
   }
 
-  // Step 1: Search for books
-  const searchParams = {
-    api_key: RAINFOREST_API_KEY,
-    type: "search",
-    amazon_domain: "amazon.com",
-    search_term: searchTerm,
-    number_of_results: 30,
-    sort_by: "bestseller_rankings",
-  };
+  try {
+    // Step 1: Search for books
+    const searchParams = {
+      api_key: RAINFOREST_API_KEY,
+      type: "search",
+      amazon_domain: "amazon.com",
+      search_term: searchTerm,
+      number_of_results: 30,
+      sort_by: "bestseller_rankings",
+    };
 
-  const searchResponse = await axios.get("https://api.rainforestapi.com/request", {
-    params: searchParams,
-  });
+    const searchResponse = await axios.get("https://api.rainforestapi.com/request", {
+      params: searchParams,
+    });
 
-  const results: RainforestBook[] = searchResponse.data.search_results || [];
-  
-  // Debug: Log first result to see available fields
-  if (results.length > 0) {
-    console.log("Sample search result fields:", JSON.stringify(results[0], null, 2));
-  }
-
-  // Step 2: Normalize search results (without BSR for now)
-  const books: NormalizedBook[] = results
-    .map((r) => {
-      const priceValue =
-        r.price && typeof r.price.value === "number" ? r.price.value : null;
-
-      const authors =
-        r.authors && Array.isArray(r.authors)
-          ? r.authors
-              .map((a) => (typeof a.name === "string" ? a.name : null))
-              .filter(Boolean) as string[]
-          : [];
-
-      return {
-        title: r.title || "",
-        asin: r.asin || "",
-        link: r.link || "",
-        image: r.image || null,
-        rating: r.rating || 0,
-        reviews: r.ratings_total || r.reviews_total || 0,
-        price: priceValue,
-        rank: null as number | null,
-        publicationDate: r.publication_date || null,
-        authors,
-      };
-    })
-    .filter((b) => b.title && b.asin);
-
-  // Step 3: Fetch product details for top 15 books to get BSR data
-  const topBooks = books.slice(0, 15);
-  console.log(`Fetching BSR data for ${topBooks.length} books...`);
-  
-  const bsrPromises = topBooks.map((book) => 
-    fetchProductDetails(book.asin, RAINFOREST_API_KEY)
-  );
-  
-  const bsrResults = await Promise.all(bsrPromises);
-  
-  // Merge BSR data back into books
-  topBooks.forEach((book, index) => {
-    const bsr = bsrResults[index];
-    if (bsr !== null) {
-      book.rank = bsr;
-      console.log(`BSR for "${book.title.substring(0, 40)}...": ${bsr}`);
+    const results: RainforestBook[] = searchResponse.data.search_results || [];
+    
+    // Debug: Log first result to see available fields
+    if (results.length > 0) {
+      console.log("Sample search result fields:", JSON.stringify(results[0], null, 2));
     }
-  });
 
-  // Return top books with BSR + remaining books without
-  const remainingBooks = books.slice(15);
-  return [...topBooks, ...remainingBooks];
+    // Step 2: Normalize search results (without BSR for now)
+    const books: NormalizedBook[] = results
+      .map((r) => {
+        const priceValue =
+          r.price && typeof r.price.value === "number" ? r.price.value : null;
+
+        const authors =
+          r.authors && Array.isArray(r.authors)
+            ? r.authors
+                .map((a) => (typeof a.name === "string" ? a.name : null))
+                .filter(Boolean) as string[]
+            : [];
+
+        return {
+          title: r.title || "",
+          asin: r.asin || "",
+          link: r.link || "",
+          image: r.image || null,
+          rating: r.rating || 0,
+          reviews: r.ratings_total || r.reviews_total || 0,
+          price: priceValue,
+          rank: null as number | null,
+          publicationDate: r.publication_date || null,
+          authors,
+        };
+      })
+      .filter((b) => b.title && b.asin);
+
+    // Step 3: Fetch product details for top 15 books to get BSR data
+    const topBooks = books.slice(0, 15);
+    console.log(`Fetching BSR data for ${topBooks.length} books...`);
+    
+    const bsrPromises = topBooks.map((book) => 
+      fetchProductDetails(book.asin, RAINFOREST_API_KEY)
+    );
+    
+    const bsrResults = await Promise.all(bsrPromises);
+    
+    // Merge BSR data back into books
+    topBooks.forEach((book, index) => {
+      const bsr = bsrResults[index];
+      if (bsr !== null) {
+        book.rank = bsr;
+        console.log(`BSR for "${book.title.substring(0, 40)}...": ${bsr}`);
+      }
+    });
+
+    // Return top books with BSR + remaining books without
+    const remainingBooks = books.slice(15);
+    return { books: [...topBooks, ...remainingBooks], isDemo: false };
+  } catch (error: any) {
+    // Check for API quota exceeded (402 Payment Required)
+    if (error.response?.status === 402) {
+      console.log("API quota exceeded - switching to demo mode");
+      demoMode = true;
+      return { books: generateDemoBooks(searchTerm), isDemo: true };
+    }
+    throw error;
+  }
 }
 
 // Compute Market Stats
@@ -584,8 +639,8 @@ export async function registerRoutes(
       // Step 1: Detect Genre
       const genre = detectGenre(idea);
 
-      // Step 2: Fetch Amazon Data
-      const books = await fetchAmazonBooks(idea);
+      // Step 2: Fetch Amazon Data (may use demo mode if API unavailable)
+      const { books, isDemo } = await fetchAmazonBooks(idea);
 
       // Step 3: Compute Market Stats
       const analysis = computeMarketSnapshot(books, genre);
@@ -598,6 +653,7 @@ export async function registerRoutes(
         verdict: analysis.verdict,
         verdictReason: analysis.verdictReason,
         genre,
+        isDemo,
         stats: {
           avgPrice: (analysis.priceMin && analysis.priceMax) 
             ? (analysis.priceMin + analysis.priceMax) / 2 
@@ -623,7 +679,7 @@ export async function registerRoutes(
           cheapBookShare: analysis.cheapBookShare,
           premiumBookShare: analysis.premiumBookShare,
         },
-        books: books.slice(0, 15).map((b) => ({
+        books: books.slice(0, 15).map((b: NormalizedBook) => ({
           title: b.title,
           author: b.authors[0] || "Unknown",
           price: b.price || 0,
