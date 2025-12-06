@@ -112,7 +112,7 @@ function generateDemoBooks(searchTerm: string): NormalizedBook[] {
   }));
 }
 
-// Genre Detection
+// Genre Detection - Expanded for more specific categories
 function detectGenre(ideaText: string) {
   const lower = ideaText.toLowerCase();
   const genre = {
@@ -120,6 +120,7 @@ function detectGenre(ideaText: string) {
     subtype: "general",
   };
 
+  // Fiction Detection
   if (
     lower.includes("novel") ||
     lower.includes("fantasy") ||
@@ -127,39 +128,170 @@ function detectGenre(ideaText: string) {
     lower.includes("thriller") ||
     lower.includes("mystery") ||
     lower.includes("sci-fi") ||
-    lower.includes("science fiction")
+    lower.includes("science fiction") ||
+    lower.includes("fiction") ||
+    lower.includes("horror") ||
+    lower.includes("suspense")
   ) {
     genre.category = "fiction";
     if (lower.includes("fantasy")) genre.subtype = "fantasy";
     else if (lower.includes("romance")) genre.subtype = "romance";
-    else if (lower.includes("mystery")) genre.subtype = "mystery";
+    else if (lower.includes("mystery") || lower.includes("suspense")) genre.subtype = "mystery";
+    else if (lower.includes("thriller")) genre.subtype = "thriller";
+    else if (lower.includes("horror")) genre.subtype = "horror";
+    else if (lower.includes("sci-fi") || lower.includes("science fiction")) genre.subtype = "science_fiction";
     else genre.subtype = "general_fiction";
-  } else if (lower.includes("devotional")) {
-    genre.subtype = "devotional";
-  } else if (lower.includes("journal")) {
+  }
+  // Christian / Religious / Spiritual
+  else if (
+    lower.includes("christian") ||
+    lower.includes("faith") ||
+    lower.includes("spiritual") ||
+    lower.includes("prayer") ||
+    lower.includes("bible") ||
+    lower.includes("god") ||
+    lower.includes("jesus") ||
+    lower.includes("church") ||
+    lower.includes("gospel") ||
+    lower.includes("devotional") ||
+    lower.includes("scripture") ||
+    lower.includes("religious") ||
+    lower.includes("worship") ||
+    lower.includes("discipleship") ||
+    lower.includes("formation")
+  ) {
+    genre.category = "religion_spirituality";
+    if (lower.includes("devotional")) genre.subtype = "devotional";
+    else if (lower.includes("bible study") || lower.includes("study guide")) genre.subtype = "bible_study";
+    else if (lower.includes("prayer")) genre.subtype = "prayer";
+    else if (lower.includes("formation") || lower.includes("discipleship")) genre.subtype = "spiritual_growth";
+    else if (lower.includes("christian living") || lower.includes("faith")) genre.subtype = "christian_living";
+    else genre.subtype = "christian";
+  }
+  // Self-Help / Personal Development
+  else if (
+    lower.includes("self-help") ||
+    lower.includes("self help") ||
+    lower.includes("personal development") ||
+    lower.includes("personal growth") ||
+    lower.includes("motivation") ||
+    lower.includes("habits") ||
+    lower.includes("mindset") ||
+    lower.includes("success") ||
+    lower.includes("productivity") ||
+    lower.includes("goal") ||
+    lower.includes("transform")
+  ) {
+    genre.category = "self_help";
+    if (lower.includes("habits")) genre.subtype = "habits";
+    else if (lower.includes("productivity")) genre.subtype = "productivity";
+    else if (lower.includes("mindset")) genre.subtype = "mindset";
+    else if (lower.includes("motivation")) genre.subtype = "motivation";
+    else genre.subtype = "personal_development";
+  }
+  // Health & Wellness
+  else if (
+    lower.includes("health") ||
+    lower.includes("wellness") ||
+    lower.includes("fitness") ||
+    lower.includes("diet") ||
+    lower.includes("nutrition") ||
+    lower.includes("exercise") ||
+    lower.includes("weight loss") ||
+    lower.includes("yoga") ||
+    lower.includes("meditation")
+  ) {
+    genre.category = "health_wellness";
+    if (lower.includes("fitness") || lower.includes("exercise")) genre.subtype = "fitness";
+    else if (lower.includes("diet") || lower.includes("nutrition")) genre.subtype = "nutrition";
+    else if (lower.includes("meditation") || lower.includes("yoga")) genre.subtype = "mindfulness";
+    else genre.subtype = "wellness";
+  }
+  // Mental Health / Psychology
+  else if (
+    lower.includes("trauma") ||
+    lower.includes("anxiety") ||
+    lower.includes("depression") ||
+    lower.includes("mental health") ||
+    lower.includes("therapy") ||
+    lower.includes("healing") ||
+    lower.includes("psychology") ||
+    lower.includes("emotional")
+  ) {
+    genre.category = "psychology";
+    genre.subtype = "mental_health";
+  }
+  // Business / Professional
+  else if (
+    lower.includes("startup") ||
+    lower.includes("entrepreneur") ||
+    lower.includes("business") ||
+    lower.includes("leadership") ||
+    lower.includes("management") ||
+    lower.includes("marketing") ||
+    lower.includes("sales") ||
+    lower.includes("career") ||
+    lower.includes("professional") ||
+    lower.includes("corporate") ||
+    lower.includes("executive")
+  ) {
+    genre.category = "business";
+    if (lower.includes("entrepreneur") || lower.includes("startup")) genre.subtype = "entrepreneurship";
+    else if (lower.includes("leadership") || lower.includes("management")) genre.subtype = "leadership";
+    else if (lower.includes("marketing")) genre.subtype = "marketing";
+    else if (lower.includes("career") || lower.includes("professional")) genre.subtype = "career_development";
+    else genre.subtype = "business";
+  }
+  // Parenting / Family
+  else if (
+    lower.includes("parent") ||
+    lower.includes("mom") ||
+    lower.includes("dad") ||
+    lower.includes("mother") ||
+    lower.includes("father") ||
+    lower.includes("child") ||
+    lower.includes("family") ||
+    lower.includes("marriage") ||
+    lower.includes("relationship")
+  ) {
+    genre.category = "family_relationships";
+    if (lower.includes("parent") || lower.includes("mom") || lower.includes("dad")) genre.subtype = "parenting";
+    else if (lower.includes("marriage")) genre.subtype = "marriage";
+    else if (lower.includes("relationship")) genre.subtype = "relationships";
+    else genre.subtype = "family";
+  }
+  // Education / Learning
+  else if (
+    lower.includes("education") ||
+    lower.includes("learning") ||
+    lower.includes("teaching") ||
+    lower.includes("study") ||
+    lower.includes("course") ||
+    lower.includes("training")
+  ) {
+    genre.category = "education";
+    genre.subtype = "learning";
+  }
+  // Finance / Money
+  else if (
+    lower.includes("finance") ||
+    lower.includes("money") ||
+    lower.includes("investing") ||
+    lower.includes("wealth") ||
+    lower.includes("budget") ||
+    lower.includes("debt") ||
+    lower.includes("retirement")
+  ) {
+    genre.category = "finance";
+    if (lower.includes("investing")) genre.subtype = "investing";
+    else if (lower.includes("budget") || lower.includes("debt")) genre.subtype = "personal_finance";
+    else genre.subtype = "finance";
+  }
+  // Journals / Workbooks
+  else if (lower.includes("journal")) {
     genre.subtype = "journal";
   } else if (lower.includes("workbook")) {
     genre.subtype = "workbook";
-  } else if (lower.includes("bible study") || lower.includes("study guide")) {
-    genre.subtype = "study";
-  } else if (
-    lower.includes("startup") ||
-    lower.includes("entrepreneur") ||
-    lower.includes("business")
-  ) {
-    genre.subtype = "business";
-  } else if (
-    lower.includes("parent") ||
-    lower.includes("mom") ||
-    lower.includes("dad")
-  ) {
-    genre.subtype = "parenting";
-  } else if (
-    lower.includes("trauma") ||
-    lower.includes("anxiety") ||
-    lower.includes("healing")
-  ) {
-    genre.subtype = "mental_health";
   }
 
   return genre;
