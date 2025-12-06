@@ -703,6 +703,231 @@ IMPORTANT: Output ONLY the 3 suggestions as plain numbered list (1. 2. 3.). No h
   }
 }
 
+// Deep Analysis Interface - Structured JSON for comprehensive niche insights
+interface TitleIdea {
+  title: string;
+  subtitle: string;
+  hook: string;
+}
+
+interface BookBlueprint {
+  format: string;
+  totalDays: number;
+  sections: { name: string; days: string; theme: string }[];
+  dailyStructure: string[];
+  uniqueElements: string[];
+}
+
+interface DeepAnalysis {
+  nicheOpportunities: string[];
+  formatGaps: string[];
+  idealReader: {
+    demographics: string;
+    psychographics: string;
+    painPoints: string[];
+    desiredOutcome: string;
+  };
+  positioningStatement: string;
+  differentiationAngles: string[];
+  coreKeywords: string[];
+  whiteSpaceKeywords: string[];
+  suggestedCategories: string[];
+  bookBlueprint: BookBlueprint;
+  titleIdeas: TitleIdea[];
+}
+
+// Generate Deep Analysis using OpenAI with structured JSON output
+async function generateDeepAnalysis(
+  idea: string,
+  genre: { category: string; subtype: string },
+  stats: any,
+  verdict: string,
+  books: NormalizedBook[]
+): Promise<DeepAnalysis> {
+  // Build context about competing books for the AI
+  const topBooksContext = books.slice(0, 10).map(b => ({
+    title: b.title,
+    rating: b.rating,
+    reviews: b.reviews,
+    price: b.price,
+    rank: b.rank
+  }));
+
+  const prompt = `You are an expert book market analyst and publishing strategist. Analyze the following book niche and provide a comprehensive deep analysis.
+
+NICHE/IDEA: "${idea}"
+GENRE: ${genre.category} - ${genre.subtype}
+MARKET VERDICT: ${verdict}
+
+MARKET DATA:
+- Total Books Analyzed: ${stats.totalBooks}
+- Average Reviews: ${stats.avgReviews?.toFixed(0) || 'N/A'}
+- Price Range: $${stats.priceMin || 0} - $${stats.priceMax || 0} (Median: $${stats.priceMedian || 0})
+- Strong Competitors (1000+ reviews, 4.3+ rating): ${stats.strongCompetitors}
+- Mid-tier Competitors (100-999 reviews): ${stats.midCompetitors}
+- Low Review Books (<50 reviews): ${stats.lowReviewBooks}
+- BSR Distribution: ${stats.bsrBuckets?.veryStrong || 0} very strong, ${stats.bsrBuckets?.strong || 0} strong, ${stats.bsrBuckets?.moderate || 0} moderate
+- Dominant Authors: ${stats.dominantAuthors?.join(', ') || 'None'}
+
+TOP COMPETING BOOKS:
+${JSON.stringify(topBooksContext, null, 2)}
+
+Provide a comprehensive deep analysis in the following JSON structure. Be specific, actionable, and data-driven:
+
+{
+  "nicheOpportunities": ["3-5 specific underserved audiences or angles not well covered by existing books"],
+  "formatGaps": ["2-4 format opportunities like devotionals, workbooks, audio companions, series, etc."],
+  "idealReader": {
+    "demographics": "Age range, gender distribution, life stage, profession",
+    "psychographics": "Values, beliefs, lifestyle, interests",
+    "painPoints": ["3-4 specific problems they're trying to solve"],
+    "desiredOutcome": "What transformation do they seek?"
+  },
+  "positioningStatement": "One compelling sentence: For [audience] who [problem], this book provides [solution] unlike [alternatives] because [unique value]",
+  "differentiationAngles": ["4-6 specific ways to stand out from competitors"],
+  "coreKeywords": ["8-12 main keywords readers would search for"],
+  "whiteSpaceKeywords": ["5-8 underutilized keyword opportunities with less competition"],
+  "suggestedCategories": ["3-5 Amazon categories where this book could rank well"],
+  "bookBlueprint": {
+    "format": "Recommended format (30-day devotional, guide, workbook, etc.)",
+    "totalDays": 30,
+    "sections": [
+      {"name": "Section name", "days": "Days 1-7", "theme": "Section theme/focus"}
+    ],
+    "dailyStructure": ["Element 1", "Element 2 like scripture/quote", "Element 3 like reflection question"],
+    "uniqueElements": ["2-3 unique features to differentiate your book"]
+  },
+  "titleIdeas": [
+    {"title": "Main title", "subtitle": "Descriptive subtitle with keywords", "hook": "Why this title works"}
+  ]
+}
+
+IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no explanatory text. Start with { and end with }.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 2500,
+    });
+
+    const response = completion.choices[0]?.message?.content || "";
+    
+    // Parse the JSON response
+    let cleanedResponse = response.trim();
+    
+    // Remove markdown code blocks if present
+    if (cleanedResponse.startsWith("```json")) {
+      cleanedResponse = cleanedResponse.slice(7);
+    }
+    if (cleanedResponse.startsWith("```")) {
+      cleanedResponse = cleanedResponse.slice(3);
+    }
+    if (cleanedResponse.endsWith("```")) {
+      cleanedResponse = cleanedResponse.slice(0, -3);
+    }
+    cleanedResponse = cleanedResponse.trim();
+
+    const parsed = JSON.parse(cleanedResponse) as DeepAnalysis;
+    
+    // Validate required fields exist
+    if (!parsed.nicheOpportunities || !parsed.idealReader || !parsed.titleIdeas) {
+      throw new Error("Missing required fields in AI response");
+    }
+    
+    return parsed;
+  } catch (error) {
+    console.error("Deep analysis OpenAI error:", error);
+    
+    // Return a structured fallback response
+    return {
+      nicheOpportunities: [
+        "Target a specific demographic underserved by current offerings",
+        "Focus on practical, actionable content over theory",
+        "Address a timely topic or current trend in this space"
+      ],
+      formatGaps: [
+        "Interactive workbook with exercises",
+        "Audio companion or narrated version",
+        "Series format with progressive depth"
+      ],
+      idealReader: {
+        demographics: "Adults 25-55, seeking personal or professional growth",
+        psychographics: "Self-motivated learners who value practical solutions",
+        painPoints: [
+          "Overwhelmed by information without clear direction",
+          "Seeking actionable steps rather than theory",
+          "Looking for a trusted guide in this topic"
+        ],
+        desiredOutcome: "Achieve measurable improvement and confidence in this area"
+      },
+      positioningStatement: `For readers seeking ${idea}, this book provides practical, actionable guidance that goes beyond theory to deliver real results.`,
+      differentiationAngles: [
+        "Include real-world case studies and examples",
+        "Provide step-by-step implementation guides",
+        "Add downloadable resources and templates",
+        "Focus on a specific audience segment"
+      ],
+      coreKeywords: [
+        idea.split(' ').slice(0, 3).join(' '),
+        `${genre.subtype} guide`,
+        `${genre.category} book`,
+        "practical tips",
+        "how to guide"
+      ],
+      whiteSpaceKeywords: [
+        `${idea} for beginners`,
+        `${idea} workbook`,
+        `${idea} journal`,
+        `simple ${genre.subtype}`
+      ],
+      suggestedCategories: [
+        `Books > ${genre.category.charAt(0).toUpperCase() + genre.category.slice(1)}`,
+        `Kindle eBooks > ${genre.category.charAt(0).toUpperCase() + genre.category.slice(1)}`,
+        "Self-Help > Personal Transformation"
+      ],
+      bookBlueprint: {
+        format: "Comprehensive guide with practical exercises",
+        totalDays: 30,
+        sections: [
+          { name: "Foundation", days: "Days 1-7", theme: "Building core understanding" },
+          { name: "Development", days: "Days 8-21", theme: "Practical application and growth" },
+          { name: "Mastery", days: "Days 22-30", theme: "Advanced techniques and maintenance" }
+        ],
+        dailyStructure: [
+          "Key concept or principle",
+          "Real-world example or story",
+          "Practical exercise or action step",
+          "Reflection questions"
+        ],
+        uniqueElements: [
+          "Progress tracking checklists",
+          "Downloadable bonus resources",
+          "Community discussion prompts"
+        ]
+      },
+      titleIdeas: [
+        {
+          title: `The ${idea.split(' ').slice(0, 2).join(' ')} Blueprint`,
+          subtitle: "A Practical Guide to Success",
+          hook: "Clear promise with actionable framework"
+        },
+        {
+          title: `Mastering ${idea.split(' ')[0]}`,
+          subtitle: `The Complete ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Guide`,
+          hook: "Authority positioning with comprehensive scope"
+        },
+        {
+          title: `The 30-Day ${idea.split(' ').slice(0, 2).join(' ')} Challenge`,
+          subtitle: "Transform Your Life One Day at a Time",
+          hook: "Time-bound promise with daily structure"
+        }
+      ]
+    };
+  }
+}
+
 // Fetch trending book niches by searching for current bestsellers
 async function fetchTrendingNiches(): Promise<string[]> {
   const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY;
@@ -913,6 +1138,11 @@ export async function registerRoutes(
       // Step 4: Generate AI Suggestions
       const suggestions = await generateSuggestions(idea, genre, analysis, analysis.verdict);
 
+      // Step 5: Generate Deep Analysis (comprehensive niche insights)
+      // This calls the OpenAI API with market data to produce structured insights
+      // including niche opportunities, ideal reader profile, keywords, book blueprint, and title ideas
+      const deepAnalysis = await generateDeepAnalysis(idea, genre, analysis, analysis.verdict, books);
+
       // Build the response object
       const demandLevel = analysis.bsrBuckets.veryStrong + analysis.bsrBuckets.strong > 5 ? "High" : "Medium";
       const competitionLevel = analysis.strongCompetitors > 5 ? "High" : analysis.strongCompetitors > 2 ? "Medium" : "Low";
@@ -957,6 +1187,20 @@ export async function registerRoutes(
           publicationYear: b.publicationDate ? new Date(b.publicationDate).getFullYear() : new Date().getFullYear(),
         })),
         suggestions,
+        // Deep Analysis block - comprehensive niche insights from AI
+        // This is the new structured analysis that extends the basic suggestions
+        deepAnalysis: {
+          nicheOpportunities: deepAnalysis.nicheOpportunities,
+          formatGaps: deepAnalysis.formatGaps,
+          idealReader: deepAnalysis.idealReader,
+          positioningStatement: deepAnalysis.positioningStatement,
+          differentiationAngles: deepAnalysis.differentiationAngles,
+          coreKeywords: deepAnalysis.coreKeywords,
+          whiteSpaceKeywords: deepAnalysis.whiteSpaceKeywords,
+          suggestedCategories: deepAnalysis.suggestedCategories,
+          bookBlueprint: deepAnalysis.bookBlueprint,
+          titleIdeas: deepAnalysis.titleIdeas,
+        },
       };
 
       // Save to database
