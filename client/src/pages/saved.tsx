@@ -6,6 +6,7 @@ import {
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
   Download, Clock, ChevronRight, FileText, Inbox
 } from "lucide-react";
+import { getSupabase } from "@/lib/supabase";
 
 interface SavedResult {
   id: string;
@@ -18,6 +19,19 @@ interface SavedResult {
   fullReportJson: any;
 }
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const supabase = await getSupabase();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return { "Authorization": `Bearer ${session.access_token}` };
+    }
+  } catch (error) {
+    console.warn("Failed to get auth session:", error);
+  }
+  return {};
+}
+
 export default function SavedResults() {
   const [, setLocation] = useLocation();
   const [results, setResults] = useState<SavedResult[]>([]);
@@ -26,7 +40,10 @@ export default function SavedResults() {
   useEffect(() => {
     async function fetchResults() {
       try {
-        const response = await fetch("/api/saved-results");
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch("/api/saved-results", {
+          headers: authHeaders,
+        });
         if (!response.ok) {
           console.error("Failed to fetch saved results:", response.status);
           return;

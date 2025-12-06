@@ -14,6 +14,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
+import { getSupabase } from "@/lib/supabase";
 
 interface SavedResult {
   id: string;
@@ -26,6 +27,19 @@ interface SavedResult {
   fullReportJson: any;
 }
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const supabase = await getSupabase();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return { "Authorization": `Bearer ${session.access_token}` };
+    }
+  } catch (error) {
+    console.warn("Failed to get auth session:", error);
+  }
+  return {};
+}
+
 export default function SavedDetail() {
   const params = useParams();
   const [, setLocation] = useLocation();
@@ -35,7 +49,10 @@ export default function SavedDetail() {
   useEffect(() => {
     async function fetchResult() {
       try {
-        const response = await fetch(`/api/saved-results/${params.id}`);
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(`/api/saved-results/${params.id}`, {
+          headers: authHeaders,
+        });
         if (response.ok) {
           const data = await response.json();
           setResult(data);
