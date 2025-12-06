@@ -89,6 +89,50 @@ function detectGenre(ideaText: string) {
   return genre;
 }
 
+// Fetch product details to get BSR data
+async function fetchProductDetails(asin: string, apiKey: string): Promise<number | null> {
+  try {
+    const params = {
+      api_key: apiKey,
+      type: "product",
+      amazon_domain: "amazon.com",
+      asin: asin,
+    };
+
+    const response = await axios.get("https://api.rainforestapi.com/request", {
+      params,
+    });
+
+    const product = response.data.product;
+    if (!product) return null;
+
+    // Extract BSR from bestsellers_rank array (primary location)
+    if (product.bestsellers_rank && Array.isArray(product.bestsellers_rank)) {
+      // Find the main "Books" category rank (usually has the broadest category)
+      const booksRank = product.bestsellers_rank.find(
+        (r: any) => r.category?.toLowerCase().includes('books') || r.ladder?.some((l: any) => l.name?.toLowerCase() === 'books')
+      );
+      if (booksRank && typeof booksRank.rank === 'number') {
+        return booksRank.rank;
+      }
+      // If no specific books category, use the first rank
+      if (product.bestsellers_rank[0] && typeof product.bestsellers_rank[0].rank === 'number') {
+        return product.bestsellers_rank[0].rank;
+      }
+    }
+
+    // Fallback: check for sales_rank field
+    if (typeof product.sales_rank === 'number') {
+      return product.sales_rank;
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`Error fetching product details for ASIN ${asin}:`, error);
+    return null;
+  }
+}
+
 // Fetch Amazon Data via Rainforest API
 async function fetchAmazonBooks(searchTerm: string): Promise<NormalizedBook[]> {
   const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY;
@@ -97,7 +141,8 @@ async function fetchAmazonBooks(searchTerm: string): Promise<NormalizedBook[]> {
     throw new Error("RAINFOREST_API_KEY not configured");
   }
 
-  const params = {
+  // Step 1: Search for books
+  const searchParams = {
     api_key: RAINFOREST_API_KEY,
     type: "search",
     amazon_domain: "amazon.com",
@@ -106,28 +151,22 @@ async function fetchAmazonBooks(searchTerm: string): Promise<NormalizedBook[]> {
     sort_by: "bestseller_rankings",
   };
 
-  const response = await axios.get("https://api.rainforestapi.com/request", {
-    params,
+  const searchResponse = await axios.get("https://api.rainforestapi.com/request", {
+    params: searchParams,
   });
 
-  const results: RainforestBook[] = response.data.search_results || [];
+  const results: RainforestBook[] = searchResponse.data.search_results || [];
   
   // Debug: Log first result to see available fields
   if (results.length > 0) {
     console.log("Sample search result fields:", JSON.stringify(results[0], null, 2));
   }
 
+  // Step 2: Normalize search results (without BSR for now)
   const books: NormalizedBook[] = results
     .map((r) => {
       const priceValue =
         r.price && typeof r.price.value === "number" ? r.price.value : null;
-
-      let rank = null;
-      if (r.bestsellers_rank && typeof r.bestsellers_rank.rank === "number") {
-        rank = r.bestsellers_rank.rank;
-      } else if (typeof r.sales_rank === "number") {
-        rank = r.sales_rank;
-      }
 
       const authors =
         r.authors && Array.isArray(r.authors)
@@ -144,14 +183,35 @@ async function fetchAmazonBooks(searchTerm: string): Promise<NormalizedBook[]> {
         rating: r.rating || 0,
         reviews: r.ratings_total || r.reviews_total || 0,
         price: priceValue,
-        rank,
+        rank: null as number | null,
         publicationDate: r.publication_date || null,
         authors,
       };
     })
-    .filter((b) => b.title);
+    .filter((b) => b.title && b.asin);
 
-  return books;
+  // Step 3: Fetch product details for top 15 books to get BSR data
+  const topBooks = books.slice(0, 15);
+  console.log(`Fetching BSR data for ${topBooks.length} books...`);
+  
+  const bsrPromises = topBooks.map((book) => 
+    fetchProductDetails(book.asin, RAINFOREST_API_KEY)
+  );
+  
+  const bsrResults = await Promise.all(bsrPromises);
+  
+  // Merge BSR data back into books
+  topBooks.forEach((book, index) => {
+    const bsr = bsrResults[index];
+    if (bsr !== null) {
+      book.rank = bsr;
+      console.log(`BSR for "${book.title.substring(0, 40)}...": ${bsr}`);
+    }
+  });
+
+  // Return top books with BSR + remaining books without
+  const remainingBooks = books.slice(15);
+  return [...topBooks, ...remainingBooks];
 }
 
 // Compute Market Stats
