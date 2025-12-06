@@ -111,6 +111,11 @@ async function fetchAmazonBooks(searchTerm: string): Promise<NormalizedBook[]> {
   });
 
   const results: RainforestBook[] = response.data.search_results || [];
+  
+  // Debug: Log first result to see available fields
+  if (results.length > 0) {
+    console.log("Sample search result fields:", JSON.stringify(results[0], null, 2));
+  }
 
   const books: NormalizedBook[] = results
     .map((r) => {
