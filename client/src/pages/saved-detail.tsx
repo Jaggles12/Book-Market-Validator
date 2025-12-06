@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { 
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
   BarChart3, Users, DollarSign, Book, TrendingUp, 
-  Activity, Award, AlertCircle
+  Activity, Award, AlertCircle, Lightbulb, Target, Tag, 
+  FileText, Sparkles, ArrowRightCircle
 } from "lucide-react";
 import {
   Accordion,
@@ -341,6 +342,335 @@ export default function SavedDetail() {
                 ))}
               </div>
             </motion.div>
+          )}
+
+          {/* Deep Analysis Sections */}
+          {data.deepAnalysis && (
+            <>
+              {/* Niche Opportunities Card */}
+              {((data.deepAnalysis.nicheOpportunities && data.deepAnalysis.nicheOpportunities.length > 0) || 
+                (data.deepAnalysis.formatGaps && data.deepAnalysis.formatGaps.length > 0)) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-5"
+                  data-testid="card-niche-opportunities"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                      <Lightbulb size={16} />
+                    </div>
+                    <h3 className="font-bold text-foreground">Niche Opportunities</h3>
+                  </div>
+                  
+                  {data.deepAnalysis.nicheOpportunities && data.deepAnalysis.nicheOpportunities.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Underserved Audiences</p>
+                      <ul className="space-y-2">
+                        {data.deepAnalysis.nicheOpportunities.map((opportunity: string, i: number) => (
+                          <li key={i} className="flex gap-2 text-sm text-foreground/80">
+                            <span className="text-purple-500 mt-1">•</span>
+                            <span>{opportunity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.formatGaps && data.deepAnalysis.formatGaps.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Format Opportunities</p>
+                      <ul className="space-y-2">
+                        {data.deepAnalysis.formatGaps.map((gap: string, i: number) => (
+                          <li key={i} className="flex gap-2 text-sm text-foreground/80">
+                            <span className="text-purple-500 mt-1">•</span>
+                            <span>{gap}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* Positioning & Ideal Reader Card */}
+              {(data.deepAnalysis.idealReader || data.deepAnalysis.positioningStatement || 
+                (data.deepAnalysis.differentiationAngles && data.deepAnalysis.differentiationAngles.length > 0)) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-5"
+                  data-testid="card-positioning"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <Target size={16} />
+                    </div>
+                    <h3 className="font-bold text-foreground">Positioning & Ideal Reader</h3>
+                  </div>
+                  
+                  {data.deepAnalysis.idealReader && (
+                    <div className="mb-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Ideal Reader</p>
+                      {typeof data.deepAnalysis.idealReader === 'string' ? (
+                        <p className="text-sm text-foreground/80">{data.deepAnalysis.idealReader}</p>
+                      ) : (
+                        <div className="space-y-2 text-sm text-foreground/80">
+                          {data.deepAnalysis.idealReader.demographics && (
+                            <p><span className="font-medium">Demographics:</span> {data.deepAnalysis.idealReader.demographics}</p>
+                          )}
+                          {data.deepAnalysis.idealReader.psychographics && (
+                            <p><span className="font-medium">Psychographics:</span> {data.deepAnalysis.idealReader.psychographics}</p>
+                          )}
+                          {data.deepAnalysis.idealReader.painPoints && data.deepAnalysis.idealReader.painPoints.length > 0 && (
+                            <div>
+                              <span className="font-medium">Pain Points:</span>
+                              <ul className="mt-1 ml-4">
+                                {data.deepAnalysis.idealReader.painPoints.map((point: string, i: number) => (
+                                  <li key={i} className="flex gap-2">
+                                    <span className="text-blue-500">•</span>
+                                    <span>{point}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {data.deepAnalysis.idealReader.desiredOutcome && (
+                            <p><span className="font-medium">Desired Outcome:</span> {data.deepAnalysis.idealReader.desiredOutcome}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.positioningStatement && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-xl">
+                      <p className="text-xs font-bold uppercase tracking-wide text-blue-700 mb-1">Positioning Statement</p>
+                      <p className="text-sm font-medium text-blue-900">{data.deepAnalysis.positioningStatement}</p>
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.differentiationAngles && data.deepAnalysis.differentiationAngles.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">You Can Stand Out By</p>
+                      <ul className="space-y-2">
+                        {data.deepAnalysis.differentiationAngles.map((angle: string, i: number) => (
+                          <li key={i} className="flex gap-2 text-sm text-foreground/80">
+                            <span className="text-blue-500 mt-1">•</span>
+                            <span>{angle}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* Keywords & Categories Card */}
+              {((data.deepAnalysis.coreKeywords && data.deepAnalysis.coreKeywords.length > 0) || 
+                (data.deepAnalysis.whiteSpaceKeywords && data.deepAnalysis.whiteSpaceKeywords.length > 0) ||
+                (data.deepAnalysis.suggestedCategories && data.deepAnalysis.suggestedCategories.length > 0)) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-5"
+                  data-testid="card-keywords"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                      <Tag size={16} />
+                    </div>
+                    <h3 className="font-bold text-foreground">Keywords & Categories</h3>
+                  </div>
+                  
+                  {data.deepAnalysis.coreKeywords && data.deepAnalysis.coreKeywords.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Core Keywords</p>
+                      <div className="flex flex-wrap gap-2">
+                        {data.deepAnalysis.coreKeywords.map((keyword: string, i: number) => (
+                          <span key={i} className="px-2.5 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-full border border-green-200">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.whiteSpaceKeywords && data.deepAnalysis.whiteSpaceKeywords.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">White Space Keywords</p>
+                      <p className="text-[10px] text-muted-foreground mb-2 -mt-1">Lower competition opportunities</p>
+                      <div className="flex flex-wrap gap-2">
+                        {data.deepAnalysis.whiteSpaceKeywords.map((keyword: string, i: number) => (
+                          <span key={i} className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.suggestedCategories && data.deepAnalysis.suggestedCategories.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Suggested Categories</p>
+                      <ul className="space-y-1">
+                        {data.deepAnalysis.suggestedCategories.map((category: string, i: number) => (
+                          <li key={i} className="flex gap-2 text-sm text-foreground/80">
+                            <span className="text-green-500">•</span>
+                            <span>{category}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* Book Blueprint & Title Ideas Card */}
+              {(data.deepAnalysis.bookBlueprint || (data.deepAnalysis.titleIdeas && data.deepAnalysis.titleIdeas.length > 0)) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-5"
+                  data-testid="card-blueprint"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <FileText size={16} />
+                    </div>
+                    <h3 className="font-bold text-foreground">Book Blueprint & Title Ideas</h3>
+                  </div>
+                  
+                  {data.deepAnalysis.bookBlueprint && (
+                    <div className="mb-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Recommended Structure</p>
+                      
+                      <div className="space-y-2 text-sm text-foreground/80">
+                        {(data.deepAnalysis.bookBlueprint.format || data.deepAnalysis.bookBlueprint.recommendedLength) && (
+                          <p>
+                            <span className="font-medium">Format:</span>{" "}
+                            {data.deepAnalysis.bookBlueprint.format || data.deepAnalysis.bookBlueprint.recommendedLength}
+                            {data.deepAnalysis.bookBlueprint.totalDays && ` (${data.deepAnalysis.bookBlueprint.totalDays} days)`}
+                          </p>
+                        )}
+                        
+                        {data.deepAnalysis.bookBlueprint.sections && data.deepAnalysis.bookBlueprint.sections.length > 0 && (
+                          <div>
+                            <span className="font-medium">Sections:</span>
+                            <ul className="mt-1 ml-4 space-y-1">
+                              {data.deepAnalysis.bookBlueprint.sections.map((section: any, i: number) => (
+                                <li key={i} className="flex gap-2">
+                                  <span className="text-orange-500">•</span>
+                                  <span>
+                                    {section.name}
+                                    {section.days && ` (${section.days} days)`}
+                                    {section.theme && ` – ${section.theme}`}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {data.deepAnalysis.bookBlueprint.sectionThemes && data.deepAnalysis.bookBlueprint.sectionThemes.length > 0 && (
+                          <div>
+                            <span className="font-medium">Section Themes:</span>
+                            <ul className="mt-1 ml-4 space-y-1">
+                              {data.deepAnalysis.bookBlueprint.sectionThemes.map((theme: string, i: number) => (
+                                <li key={i} className="flex gap-2">
+                                  <span className="text-orange-500">•</span>
+                                  <span>{theme}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {data.deepAnalysis.bookBlueprint.dailyStructure && (
+                          <div className="p-3 bg-orange-50 rounded-xl">
+                            <span className="font-medium text-orange-700">Daily Structure:</span>{" "}
+                            <span className="text-orange-900">
+                              {Array.isArray(data.deepAnalysis.bookBlueprint.dailyStructure) 
+                                ? data.deepAnalysis.bookBlueprint.dailyStructure.join(" → ")
+                                : data.deepAnalysis.bookBlueprint.dailyStructure}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {data.deepAnalysis.bookBlueprint.uniqueElements && data.deepAnalysis.bookBlueprint.uniqueElements.length > 0 && (
+                          <div>
+                            <span className="font-medium">Unique Elements:</span>
+                            <ul className="mt-1 ml-4 space-y-1">
+                              {data.deepAnalysis.bookBlueprint.uniqueElements.map((element: string, i: number) => (
+                                <li key={i} className="flex gap-2">
+                                  <span className="text-orange-500">•</span>
+                                  <span>{element}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.titleIdeas && data.deepAnalysis.titleIdeas.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles size={14} className="text-orange-500" />
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Title Ideas</p>
+                      </div>
+                      <div className="space-y-3">
+                        {data.deepAnalysis.titleIdeas.slice(0, 5).map((idea: any, i: number) => (
+                          <div key={i} className="p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+                            <p className="font-bold text-foreground text-sm">{idea.title}</p>
+                            {idea.subtitle && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{idea.subtitle}</p>
+                            )}
+                            {idea.hook && (
+                              <p className="text-xs text-orange-600 mt-1 italic">"{idea.hook}"</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* Next Steps Card */}
+              {data.deepAnalysis.nextSteps && data.deepAnalysis.nextSteps.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.45 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-5"
+                  data-testid="card-next-steps"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                      <ArrowRightCircle size={16} />
+                    </div>
+                    <h3 className="font-bold text-foreground">Next Steps</h3>
+                  </div>
+                  
+                  <ol className="space-y-3">
+                    {data.deepAnalysis.nextSteps.map((step: string, i: number) => (
+                      <li key={i} className="flex gap-3 text-sm text-foreground/80">
+                        <span className="flex-shrink-0 h-6 w-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                          {i + 1}
+                        </span>
+                        <span className="pt-0.5">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </motion.div>
+              )}
+            </>
           )}
 
           {/* Competitor Books */}
