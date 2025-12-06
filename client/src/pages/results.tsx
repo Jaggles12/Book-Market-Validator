@@ -261,6 +261,7 @@ export default function Validate() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
+                  {data.detailedStats.priceMin !== null && data.detailedStats.priceMax !== null ? (
                   <div className="flex items-center justify-between px-2">
                     <div className="text-center">
                       <div className="text-xs text-muted-foreground mb-1">Min</div>
@@ -269,13 +270,18 @@ export default function Validate() {
                     <div className="h-px bg-border flex-1 mx-4 relative">
                       <div className="absolute left-1/2 -translate-x-1/2 -top-3 text-[10px] bg-white px-1 text-muted-foreground">Median</div>
                       <div className="absolute left-1/2 -translate-x-1/2 top-[-2px] h-2 w-2 bg-black rounded-full"></div>
-                      <div className="absolute left-1/2 -translate-x-1/2 top-3 font-bold text-sm">${data.detailedStats.priceMedian.toFixed(2)}</div>
+                      <div className="absolute left-1/2 -translate-x-1/2 top-3 font-bold text-sm">${(data.detailedStats.priceMedian ?? 0).toFixed(2)}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-muted-foreground mb-1">Max</div>
                       <div className="font-mono font-medium">${data.detailedStats.priceMax.toFixed(2)}</div>
                     </div>
                   </div>
+                  ) : (
+                  <div className="text-center text-muted-foreground text-sm py-4">
+                    No pricing data available for this search.
+                  </div>
+                  )}
                   
                   <div className="space-y-2 mt-4">
                      {data.detailedStats.cheapBookShare > 0.3 && (
