@@ -638,6 +638,15 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       console.error("Validation error:", error);
+      
+      // Check for API quota exceeded (402 Payment Required)
+      if (error.response?.status === 402 || error.message?.includes("402")) {
+        return res.status(503).json({ 
+          error: "API quota exceeded", 
+          details: "The Amazon data service has reached its usage limit. Please try again later or contact support to add more API credits."
+        });
+      }
+      
       res.status(500).json({ 
         error: "Failed to validate book idea", 
         details: error.message 
