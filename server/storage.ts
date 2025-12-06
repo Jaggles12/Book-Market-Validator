@@ -17,6 +17,7 @@ export interface IStorage {
   saveResult(result: InsertSavedResult): Promise<SavedResult>;
   getAllResultsByUser(userId: string): Promise<SavedResult[]>;
   getResultById(id: string, userId: string): Promise<SavedResult | undefined>;
+  deleteResult(id: string, userId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -58,6 +59,13 @@ export class MemStorage implements IStorage {
     const [result] = await db.select().from(savedResults)
       .where(and(eq(savedResults.id, id), eq(savedResults.userId, userId)));
     return result;
+  }
+
+  async deleteResult(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(savedResults)
+      .where(and(eq(savedResults.id, id), eq(savedResults.userId, userId)))
+      .returning();
+    return result.length > 0;
   }
 }
 

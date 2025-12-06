@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { 
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
-  Download, Clock, ChevronRight, FileText, Inbox
+  Download, Clock, ChevronRight, FileText, Inbox, X
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 
@@ -67,6 +67,22 @@ export default function SavedResults() {
 
   const handleViewResult = (id: string) => {
     setLocation(`/saved/${id}`);
+  };
+
+  const handleDeleteResult = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/saved-results/${id}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      if (response.ok) {
+        setResults(results.filter(r => r.id !== id));
+      }
+    } catch (error) {
+      console.error("Failed to delete result:", error);
+    }
   };
 
   const groupedResults = {
@@ -227,7 +243,16 @@ export default function SavedResults() {
                                 </p>
                               )}
                             </div>
-                            <ChevronRight size={20} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={(e) => handleDeleteResult(result.id, e)}
+                                className="h-7 w-7 rounded-full bg-gray-100 hover:bg-red-100 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+                                data-testid={`button-delete-${result.id}`}
+                              >
+                                <X size={14} />
+                              </button>
+                              <ChevronRight size={20} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                           </div>
                         </div>
                       ))}

@@ -931,6 +931,22 @@ export async function registerRoutes(
     }
   });
 
+  // Delete a saved result by ID for the authenticated user
+  app.delete("/api/saved-results/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.userId!;
+      const deleted = await storage.deleteResult(id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Result not found" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting saved result:", error);
+      res.status(500).json({ error: "Failed to delete saved result" });
+    }
+  });
+
   // Export saved results as CSV for the authenticated user
   app.get("/api/saved-results/export/csv", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
