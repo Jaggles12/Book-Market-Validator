@@ -1052,8 +1052,20 @@ Provide a comprehensive deep analysis in the following JSON structure. Be specif
   "titleIdeas": [
     {"title": "Main title", "subtitle": "Descriptive subtitle with keywords", "hook": "Why this title works"}
   ],
-  "nextSteps": ["3-5 concrete, actionable next steps for the author based on this analysis. Be specific about what to do, format, length, differentiators, etc. Examples: 'Begin drafting a 32-40 page picture book focused on one core emotional theme', 'Plan a 3-book series covering anger, sadness, and worry', 'Use the interactive activities angle to differentiate from competitors'"]
+  "nextSteps": [
+    "Step 1: Clarify Your Core Promise - Write one sentence that captures exactly what transformation this book delivers to your specific reader. Example format: 'In [timeframe/pages], this [format] helps [specific audience] move from [pain point] to [desired outcome] through [method].'",
+    "Step 2: Build Your [format-specific] Framework - Create the structural outline tailored to this genre. For devotionals: map 30 days into weekly themes. For picture books: plan 6-8 key scenes. For self-help: outline 8-12 chapters with progressive depth.",
+    "Step 3: Draft Your First [section type] - Write the opening section (300-500 words for devotional entry, 2-3 spreads for picture book, full first chapter for guide). Include this writing prompt: [specific niche-tailored prompt that tells them exactly what to write about in their first piece].",
+    "Step 4: Set Your Writing Rhythm - Establish a realistic pace for this format. For devotionals: 1 entry per day or batch 3-5 entries per session. For picture books: 1 scene per session. For guides: 1 chapter per week. Aim to complete all drafts before any editing."
+  ]
 }
+
+CRITICAL INSTRUCTIONS FOR nextSteps:
+- These 4 steps must focus ONLY on the writing process - how to start and complete the manuscript.
+- Do NOT include marketing, publishing, community building, workbooks, audio companions, or business advice.
+- Customize each step to the specific niche/idea and recommended book format (devotional vs picture book vs thriller vs self-help etc.).
+- Step 3 MUST include a concrete, niche-specific writing prompt that tells the author exactly what to write for their first section.
+- Keep each step short, actionable, and immediately doable.
 
 IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no explanatory text. Start with { and end with }.`;
 
@@ -1178,11 +1190,10 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
         }
       ],
       nextSteps: [
-        `Start by outlining 30 daily entries focused on ${idea}`,
-        "Research the top 3 competing books and identify their gaps",
-        "Draft your unique positioning statement before writing",
-        "Consider a workbook companion to increase reader engagement",
-        "Plan your launch strategy with early reader reviews"
+        `Clarify Your Core Promise — Write one sentence: "In 30 days, this book helps [your specific reader] move from [their struggle with ${idea}] to [their desired transformation] through [your unique method]."`,
+        `Build Your Framework — Map out your structure: organize 30 entries into 4-5 weekly themes that progress logically through ${idea}. Week 1 might focus on awareness, Week 2 on mindset shifts, etc.`,
+        `Draft Your First Entry — Write 300-500 words for Day 1. Start with a relatable hook about ${idea}, share one key insight, and end with a simple action step. Prompt: "Write as if speaking to someone who just realized they need help with ${idea}."`,
+        `Set Your Writing Rhythm — Commit to writing 1 entry per day (15-20 min) or batch-write 5 entries per session. Complete all 30 drafts before editing any of them.`
       ]
     };
   }

@@ -1,0 +1,57 @@
+I want to improve the “Next Steps” card on my Book Market Validator results screen so that it gives concrete, writing-focused, niche-specific steps instead of generic publishing advice.
+
+Current state:
+– The results screen shows: verdict, metrics, Strategic Advice, Niche Opportunities, Positioning & Ideal Reader, Book Blueprint & Title Ideas, etc.
+– I now have a “Next Steps” card, but it mostly repeats strategic advice (e.g., build a workbook, create an audio companion, form a community).
+– I want the “Next Steps” card to focus ONLY on getting the author started writing their book, based on their specific niche and idea.
+
+What I want the system to do:
+
+In the backend, when we generate the analysis for a niche, add a new field in the JSON response called nextSteps which is an array of 4 short strings.
+
+These 4 items must be writing workflow steps, not marketing or business advice. They should always follow this pattern, but be tailored to the user’s niche and idea:
+
+Step 1: Clarify the core promise of the book for this specific audience and topic.
+
+Step 2: Create a concrete outline or framework tailored to the niche (e.g., 30-day devotional structure, 6–8 scenes for a picture book, 12 chapters for a self-help book, etc.).
+
+Step 3: Draft the first section/chapter/entry, including a niche-specific example prompt that tells the author what to write about in that first piece.
+
+Step 4: Set a realistic writing rhythm (e.g., “1 devotion per day,” “2 scenes per session,” “1 chapter per week”), again tuned to the genre.
+
+Use our existing LLM (OpenAI) and the data we already have (user idea text, inferred niche label, positioning, blueprint, etc.) to generate these 4 steps. The LLM prompt should explicitly say:
+
+Focus on launching the writing process.
+
+Avoid repeating generic marketing advice (no talk about social media, communities, workbooks, audio companions, etc.).
+
+Make the steps very concrete and niche-specific.
+
+Include one short example or writing prompt inside Step 3 so the author knows exactly what to write first.
+
+Example of the style I want for a 30-day devotional about overwhelm:
+– Step 1: Clarify Your Core Promise — one sentence, e.g. “In 30 days, this devotional helps overwhelmed readers move from emotional overload to spiritual steadiness through simple daily practices.”
+– Step 2: Build a 30-Day Framework — e.g., “Days 1–7: Recognizing emotional overwhelm; Days 8–14: Replacing anxious thoughts with scriptural truth,” etc.
+– Step 3: Draft Your First Devotion — 300–500 words with structure “Scripture → personal connection → spiritual insight → action step,” plus a prompt like “Write Day 1 as if speaking to a reader who wakes up already overwhelmed.”
+– Step 4: Establish Your Writing Rhythm — e.g., “Write one devotion per day or batch-write 3–5 at a time; finish all 30 drafts before editing.”
+
+Frontend changes:
+
+Update the “Next Steps” card component on the results screen so it reads from the nextSteps array in the API response instead of whatever content is hard-coded now.
+
+Render the four nextSteps items as a numbered list (1–4), just like in my current design.
+
+Make sure this card sits near the bottom of the results view, after Strategic Advice and Book Blueprint, so it feels like a final “now start writing” section.
+
+If for some reason nextSteps is missing from the response, hide the card instead of rendering placeholder text.
+
+Key constraints:
+– “Strategic Advice” should remain focused on market positioning and optional extras (workbook, audio, community).
+– “Next Steps” must focus only on how to start writing. No overlap.
+– Keep each step short, clear, and easy to act on.
+– Steps must always be customized using the user’s idea and niche (devotional vs children’s picture book vs thriller vs self-help, etc.).
+
+Please:
+– Implement the backend LLM call (or extend the existing one) to generate this nextSteps array.
+– Show the updated backend code that adds nextSteps to the analysis response.
+– Show the updated React component that renders the Next Steps card using this new field.
