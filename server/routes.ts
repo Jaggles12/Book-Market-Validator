@@ -718,6 +718,8 @@ function computeMarketSnapshot(books: NormalizedBook[], genreHint: { category: s
     premiumBookShare,
     verdict,
     verdictReason,
+    demandLevel,
+    competitionLevel,
   };
 }
 
@@ -1419,9 +1421,9 @@ export async function registerRoutes(
       // including niche opportunities, ideal reader profile, keywords, book blueprint, and title ideas
       const deepAnalysis = await generateDeepAnalysis(idea, genre, analysis, analysis.verdict, books);
 
-      // Build the response object
-      const demandLevel = analysis.bsrBuckets.veryStrong + analysis.bsrBuckets.strong > 5 ? "High" : "Medium";
-      const competitionLevel = analysis.strongCompetitors > 5 ? "High" : analysis.strongCompetitors > 2 ? "Medium" : "Low";
+      // Use the demand and competition levels from analysis (ensures consistency with verdictReason)
+      const demandLevel = analysis.demandLevel === "HIGH" ? "High" : analysis.demandLevel === "MEDIUM" ? "Medium" : "Low";
+      const competitionLevel = analysis.competitionLevel === "HIGH" ? "High" : analysis.competitionLevel === "MEDIUM" ? "Medium" : "Low";
       
       // Generate human-friendly genre label
       const friendlyGenreLabel = generateFriendlyGenreLabel(
