@@ -61,8 +61,30 @@ export default function SavedResults() {
     fetchResults();
   }, []);
 
-  const handleExportCSV = () => {
-    window.location.href = "/api/saved-results/export/csv";
+  const handleExportCSV = async () => {
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch("/api/saved-results/export/csv", {
+        headers: authHeaders,
+      });
+      
+      if (!response.ok) {
+        console.error("Failed to export CSV:", response.status);
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "book-validation-results.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export CSV:", error);
+    }
   };
 
   const handleViewResult = (id: string) => {
