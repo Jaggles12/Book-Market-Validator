@@ -1574,20 +1574,185 @@ export async function registerRoutes(
       const userId = req.userId!;
       const results = await storage.getAllResultsByUser(userId);
       
-      const sanitizeForCSV = (value: string): string => {
-        let sanitized = value.replace(/"/g, '""');
+      const sanitizeForCSV = (value: any): string => {
+        if (value === null || value === undefined) return "";
+        const str = String(value);
+        let sanitized = str.replace(/"/g, '""');
         sanitized = sanitized.replace(/[\r\n]+/g, ' ');
         if (/^[=+\-@\t\r]/.test(sanitized)) {
           sanitized = "'" + sanitized;
         }
         return sanitized;
       };
-      
-      const csvHeader = "id,niche,verdict,demandScore,competitionScore,createdAt\n";
-      const csvRows = results.map((r: { id: string; niche: string; verdict: string; demandScore: string; competitionScore: string; createdAt: Date }) => 
-        `"${sanitizeForCSV(r.id)}","${sanitizeForCSV(r.niche)}","${sanitizeForCSV(r.verdict)}","${sanitizeForCSV(r.demandScore)}","${sanitizeForCSV(r.competitionScore)}","${r.createdAt.toISOString()}"`
-      ).join("\n");
-      
+
+      interface FlattenedResult {
+        id: string;
+        createdAt: string;
+        nicheInput: string;
+        verdict: string;
+        verdictReason: string;
+        genreCategory: string;
+        genreSubtype: string;
+        friendlyGenreLabel: string;
+        demandScore: string;
+        competitionScore: string;
+        avgPrice: string;
+        avgRating: string;
+        totalBooks: string;
+        avgReviews: string;
+        priceMin: string;
+        priceMedian: string;
+        priceMax: string;
+        veryStrongBSR: string;
+        strongBSR: string;
+        moderateBSR: string;
+        weakBSR: string;
+        strongCompetitors: string;
+        midCompetitors: string;
+        lowReviewBooks: string;
+        evergreenSignal: string;
+        cheapBookShare: string;
+        premiumBookShare: string;
+        category1: string;
+        category2: string;
+        category3: string;
+        nicheOpportunity1: string;
+        nicheOpportunity2: string;
+        formatGap1: string;
+        formatGap2: string;
+        idealReaderDemographics: string;
+        idealReaderPsychographics: string;
+        idealReaderPainPoint1: string;
+        idealReaderPainPoint2: string;
+        idealReaderDesiredOutcome: string;
+        positioningStatement: string;
+        titleIdea1Title: string;
+        titleIdea1Subtitle: string;
+        titleIdea1Hook: string;
+        nextStep1: string;
+        nextStep2: string;
+        nextStep3: string;
+        nextStep4: string;
+        coreKeywords: string[];
+        whiteSpaceKeywords: string[];
+      }
+
+      const flattenResult = (r: any): FlattenedResult => {
+        const analysis = r.fullReportJson || {};
+        const stats = analysis.stats || {};
+        const detailedStats = analysis.detailedStats || {};
+        const bsrBuckets = detailedStats.bsrBuckets || {};
+        const deepAnalysis = analysis.deepAnalysis || {};
+        const idealReader = deepAnalysis.idealReader || {};
+        const genre = analysis.genre || {};
+        const suggestedCategories = deepAnalysis.suggestedCategories || [];
+        const nicheOpportunities = deepAnalysis.nicheOpportunities || [];
+        const formatGaps = deepAnalysis.formatGaps || [];
+        const painPoints = idealReader.painPoints || [];
+        const titleIdeas = deepAnalysis.titleIdeas || [];
+        const nextSteps = deepAnalysis.nextSteps || [];
+        const coreKeywords = deepAnalysis.coreKeywords || [];
+        const whiteSpaceKeywords = deepAnalysis.whiteSpaceKeywords || [];
+
+        return {
+          id: r.id || "",
+          createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : "",
+          nicheInput: r.niche || "",
+          verdict: r.verdict || "",
+          verdictReason: analysis.verdictReason || "",
+          genreCategory: genre.category || "",
+          genreSubtype: genre.subtype || "",
+          friendlyGenreLabel: analysis.friendlyGenreLabel || "",
+          demandScore: r.demandScore || "",
+          competitionScore: r.competitionScore || "",
+          avgPrice: stats.avgPrice != null ? String(stats.avgPrice) : "",
+          avgRating: stats.avgRating != null ? String(stats.avgRating) : "",
+          totalBooks: detailedStats.totalBooks != null ? String(detailedStats.totalBooks) : "",
+          avgReviews: detailedStats.avgReviews != null ? String(detailedStats.avgReviews) : "",
+          priceMin: detailedStats.priceMin != null ? String(detailedStats.priceMin) : "",
+          priceMedian: detailedStats.priceMedian != null ? String(detailedStats.priceMedian) : "",
+          priceMax: detailedStats.priceMax != null ? String(detailedStats.priceMax) : "",
+          veryStrongBSR: bsrBuckets.veryStrong != null ? String(bsrBuckets.veryStrong) : "",
+          strongBSR: bsrBuckets.strong != null ? String(bsrBuckets.strong) : "",
+          moderateBSR: bsrBuckets.moderate != null ? String(bsrBuckets.moderate) : "",
+          weakBSR: bsrBuckets.weak != null ? String(bsrBuckets.weak) : "",
+          strongCompetitors: detailedStats.strongCompetitors != null ? String(detailedStats.strongCompetitors) : "",
+          midCompetitors: detailedStats.midCompetitors != null ? String(detailedStats.midCompetitors) : "",
+          lowReviewBooks: detailedStats.lowReviewBooks != null ? String(detailedStats.lowReviewBooks) : "",
+          evergreenSignal: detailedStats.evergreenSignal != null ? String(detailedStats.evergreenSignal) : "",
+          cheapBookShare: detailedStats.cheapBookShare != null ? String(detailedStats.cheapBookShare) : "",
+          premiumBookShare: detailedStats.premiumBookShare != null ? String(detailedStats.premiumBookShare) : "",
+          category1: suggestedCategories[0] || "",
+          category2: suggestedCategories[1] || "",
+          category3: suggestedCategories[2] || "",
+          nicheOpportunity1: nicheOpportunities[0] || "",
+          nicheOpportunity2: nicheOpportunities[1] || "",
+          formatGap1: formatGaps[0] || "",
+          formatGap2: formatGaps[1] || "",
+          idealReaderDemographics: idealReader.demographics || "",
+          idealReaderPsychographics: idealReader.psychographics || "",
+          idealReaderPainPoint1: painPoints[0] || "",
+          idealReaderPainPoint2: painPoints[1] || "",
+          idealReaderDesiredOutcome: idealReader.desiredOutcome || "",
+          positioningStatement: deepAnalysis.positioningStatement || "",
+          titleIdea1Title: titleIdeas[0]?.title || "",
+          titleIdea1Subtitle: titleIdeas[0]?.subtitle || "",
+          titleIdea1Hook: titleIdeas[0]?.hook || "",
+          nextStep1: nextSteps[0] || "",
+          nextStep2: nextSteps[1] || "",
+          nextStep3: nextSteps[2] || "",
+          nextStep4: nextSteps[3] || "",
+          coreKeywords: Array.isArray(coreKeywords) ? coreKeywords : [],
+          whiteSpaceKeywords: Array.isArray(whiteSpaceKeywords) ? whiteSpaceKeywords : [],
+        };
+      };
+
+      const flattenedResults = results.map(flattenResult);
+
+      const maxCoreKeywords = Math.max(0, ...flattenedResults.map(r => r.coreKeywords.length));
+      const maxWhiteSpaceKeywords = Math.max(0, ...flattenedResults.map(r => r.whiteSpaceKeywords.length));
+
+      const baseColumns = [
+        "id", "createdAt", "nicheInput", "verdict", "verdictReason",
+        "genreCategory", "genreSubtype", "friendlyGenreLabel",
+        "demandScore", "competitionScore", "avgPrice", "avgRating",
+        "totalBooks", "avgReviews", "priceMin", "priceMedian", "priceMax",
+        "veryStrongBSR", "strongBSR", "moderateBSR", "weakBSR",
+        "strongCompetitors", "midCompetitors", "lowReviewBooks",
+        "evergreenSignal", "cheapBookShare", "premiumBookShare",
+        "category1", "category2", "category3",
+        "nicheOpportunity1", "nicheOpportunity2",
+        "formatGap1", "formatGap2",
+        "idealReaderDemographics", "idealReaderPsychographics",
+        "idealReaderPainPoint1", "idealReaderPainPoint2", "idealReaderDesiredOutcome",
+        "positioningStatement",
+        "titleIdea1Title", "titleIdea1Subtitle", "titleIdea1Hook",
+        "nextStep1", "nextStep2", "nextStep3", "nextStep4"
+      ];
+
+      const coreKeywordColumns = Array.from({ length: maxCoreKeywords }, (_, i) => `coreKeyword${i + 1}`);
+      const whiteSpaceKeywordColumns = Array.from({ length: maxWhiteSpaceKeywords }, (_, i) => `whiteSpaceKeyword${i + 1}`);
+
+      const allColumns = [...baseColumns, ...coreKeywordColumns, ...whiteSpaceKeywordColumns];
+
+      const csvHeader = allColumns.join(",") + "\n";
+
+      const csvRows = flattenedResults.map(row => {
+        return allColumns.map(col => {
+          let value: string;
+          if (col.startsWith("coreKeyword")) {
+            const idx = parseInt(col.replace("coreKeyword", ""), 10) - 1;
+            value = row.coreKeywords[idx] || "";
+          } else if (col.startsWith("whiteSpaceKeyword")) {
+            const idx = parseInt(col.replace("whiteSpaceKeyword", ""), 10) - 1;
+            value = row.whiteSpaceKeywords[idx] || "";
+          } else {
+            value = (row as any)[col] || "";
+          }
+          return `"${sanitizeForCSV(value)}"`;
+        }).join(",");
+      }).join("\n");
+
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", "attachment; filename=book-validation-results.csv");
       res.send(csvHeader + csvRows);

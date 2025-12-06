@@ -1,0 +1,197 @@
+You are editing my Book-Market-Validator project. I need you to upgrade the CSV export so it flattens the full analysis JSON (fullReportJson) into structured columns instead of only exporting a few top-level fields.
+
+Context:
+
+The main Express routes live in server/routes.ts.
+
+The /api/validate route builds a rich responseData object that includes:
+
+verdict, verdictReason
+
+genre, friendlyGenreLabel
+
+stats, detailedStats
+
+books
+
+suggestions
+
+deepAnalysis (with nicheOpportunities, formatGaps, idealReader, positioningStatement, differentiationAngles, coreKeywords, whiteSpaceKeywords, suggestedCategories, bookBlueprint, titleIdeas, nextSteps)
+
+That responseData object is saved in the DB via storage.saveResult({ ..., fullReportJson: responseData }).
+
+The current CSV export route (/api/saved-results/export/csv) only exports: id, niche, verdict, demandScore, competitionScore, createdAt.
+
+What I want:
+
+In server/routes.ts, find the /api/saved-results/export/csv handler.
+
+Replace the entire handler body with a new implementation that:
+
+Reads fullReportJson for each saved result.
+
+Flattens key fields into explicit CSV columns (no JSON blobs).
+
+Exports all coreKeywords and all whiteSpaceKeywords across all results by creating dynamic columns based on the maximum length found.
+
+Keep using an internal sanitizeForCSV() helper to:
+
+Escape quotes by doubling them.
+
+Remove newlines.
+
+Guard against CSV formula injection by prefixing values starting with =, +, -, @, tab, or carriage return.
+
+The CSV should use this base column set (in this order), derived from savedResults plus fullReportJson:
+
+id // savedResults.id
+
+createdAt // ISO string
+
+nicheInput // savedResults.niche (original user idea)
+
+verdict // savedResults.verdict
+
+verdictReason // fullReportJson.verdictReason
+
+genreCategory // fullReportJson.genre.category
+
+genreSubtype // fullReportJson.genre.subtype
+
+friendlyGenreLabel // fullReportJson.friendlyGenreLabel
+
+demandScore // savedResults.demandScore
+
+competitionScore // savedResults.competitionScore
+
+avgPrice // fullReportJson.stats.avgPrice
+
+avgRating // fullReportJson.stats.avgRating
+
+totalBooks // fullReportJson.detailedStats.totalBooks
+
+avgReviews // fullReportJson.detailedStats.avgReviews
+
+priceMin // fullReportJson.detailedStats.priceMin
+
+priceMedian // fullReportJson.detailedStats.priceMedian
+
+priceMax // fullReportJson.detailedStats.priceMax
+
+veryStrongBSR // fullReportJson.detailedStats.bsrBuckets.veryStrong
+
+strongBSR // fullReportJson.detailedStats.bsrBuckets.strong
+
+moderateBSR // fullReportJson.detailedStats.bsrBuckets.moderate
+
+weakBSR // fullReportJson.detailedStats.bsrBuckets.weak
+
+strongCompetitors // fullReportJson.detailedStats.strongCompetitors
+
+midCompetitors // fullReportJson.detailedStats.midCompetitors
+
+lowReviewBooks // fullReportJson.detailedStats.lowReviewBooks
+
+evergreenSignal // fullReportJson.detailedStats.evergreenSignal
+
+cheapBookShare // fullReportJson.detailedStats.cheapBookShare
+
+premiumBookShare // fullReportJson.detailedStats.premiumBookShare
+
+category1 // deepAnalysis.suggestedCategories[0]
+
+category2 // deepAnalysis.suggestedCategories[1]
+
+category3 // deepAnalysis.suggestedCategories[2]
+
+nicheOpportunity1 // deepAnalysis.nicheOpportunities[0]
+
+nicheOpportunity2 // deepAnalysis.nicheOpportunities[1]
+
+formatGap1 // deepAnalysis.formatGaps[0]
+
+formatGap2 // deepAnalysis.formatGaps[1]
+
+idealReaderDemographics // deepAnalysis.idealReader.demographics
+
+idealReaderPsychographics // deepAnalysis.idealReader.psychographics
+
+idealReaderPainPoint1 // deepAnalysis.idealReader.painPoints[0]
+
+idealReaderPainPoint2 // deepAnalysis.idealReader.painPoints[1]
+
+idealReaderDesiredOutcome // deepAnalysis.idealReader.desiredOutcome
+
+positioningStatement // deepAnalysis.positioningStatement
+
+titleIdea1Title // deepAnalysis.titleIdeas[0].title
+
+titleIdea1Subtitle // deepAnalysis.titleIdeas[0].subtitle
+
+titleIdea1Hook // deepAnalysis.titleIdeas[0].hook
+
+nextStep1 // deepAnalysis.nextSteps[0]
+
+nextStep2 // deepAnalysis.nextSteps[1]
+
+nextStep3 // deepAnalysis.nextSteps[2]
+
+nextStep4 // deepAnalysis.nextSteps[3]
+
+On top of those base columns, dynamically add all core keywords and white-space keywords:
+
+For each result, deepAnalysis.coreKeywords is an array of strings.
+
+For each result, deepAnalysis.whiteSpaceKeywords is an array of strings.
+
+The CSV export should:
+
+Compute maxCoreKeywords = the maximum length of coreKeywords across all flattened results.
+
+Compute maxWhiteSpaceKeywords = the maximum length of whiteSpaceKeywords across all flattened results.
+
+Add column names:
+
+coreKeyword1, coreKeyword2, … up to coreKeyword{maxCoreKeywords}
+
+whiteSpaceKeyword1, whiteSpaceKeyword2, … up to whiteSpaceKeyword{maxWhiteSpaceKeywords}
+
+For each row, fill each coreKeywordN with the Nth item of that row’s coreKeywords (or empty string if it doesn’t exist).
+
+Similarly, fill each whiteSpaceKeywordN with the Nth item of that row’s whiteSpaceKeywords.
+
+Implement this logic in TypeScript directly in server/routes.ts inside the CSV route. Use a helper flattenResult(r) that:
+
+reads r.fullReportJson into a local analysis
+
+builds a base flattened object with all non-array fields listed above
+
+also returns coreKeywords and whiteSpaceKeywords arrays so they can be expanded into dynamic columns.
+
+The CSV header row should be built from:
+
+all base column keys in order listed above
+
+then all coreKeywordN columns
+
+then all whiteSpaceKeywordN columns.
+
+For each row, iterate over columns and:
+
+if the column name is a coreKeyword column, pull the appropriate index from the coreKeywords array
+
+if it’s a whiteSpaceKeyword column, pull the appropriate index from the whiteSpaceKeywords array
+
+otherwise, pull the value from the base flattened object.
+
+Keep the route signature the same (app.get("/api/saved-results/export/csv", ...)) and keep it protected by authMiddleware.
+
+IMPORTANT: Do not dump raw JSON into any column. Every cell in the CSV must be a plain scalar string/number, one value per column.
+
+After implementing, ensure the code compiles and the /api/saved-results/export/csv endpoint now returns a CSV that includes:
+
+All the base analysis fields listed above
+
+All coreKeywords as separate columns
+
+All whiteSpaceKeywords as separate columns.
