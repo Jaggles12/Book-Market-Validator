@@ -52,6 +52,7 @@ export type MarketAnalysis = {
   verdictReason: string;
   genre: { category: string; subtype: string };
   isDemo?: boolean;
+  searchTerm?: string | null;
   stats: {
     avgPrice: number;
     avgRating: number;
@@ -333,10 +334,15 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
         ],
       };
 
+      const mockSearchTerm = idea.length > 30 || idea.includes(":") 
+        ? `${genre.subtype} books` 
+        : null;
+
       resolve({
         verdict,
         verdictReason,
         genre,
+        searchTerm: mockSearchTerm,
         stats: {
           avgPrice,
           avgRating,

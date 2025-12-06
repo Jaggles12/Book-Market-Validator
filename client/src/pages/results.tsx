@@ -81,7 +81,14 @@ export default function Validate() {
           >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="font-semibold text-lg truncate flex-1">{query}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-semibold text-lg truncate">{query}</h1>
+            {data.searchTerm && (
+              <p className="text-xs text-muted-foreground truncate" data-testid="text-analyzed-as">
+                Analyzed as: {data.searchTerm}
+              </p>
+            )}
+          </div>
         </div>
 
         {data.isDemo && (
