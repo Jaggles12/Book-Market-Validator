@@ -61,7 +61,7 @@ export default function Login() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg mb-4">
               <BookOpen className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">BookMarket Validator</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Book Market Validator</h1>
             <p className="text-slate-500 mt-2">
               {isSignUp ? 'Create your account' : 'Welcome back'}
             </p>

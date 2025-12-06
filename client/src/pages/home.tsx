@@ -96,7 +96,7 @@ export default function Home() {
             </div>
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground mb-3">
-            Book Idea<br />
+            Book Market<br />
             <span className="text-primary">Validator</span>
           </h1>
           <p className="text-muted-foreground text-lg leading-relaxed">
