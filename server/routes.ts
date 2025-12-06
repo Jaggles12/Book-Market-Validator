@@ -72,6 +72,42 @@ interface NormalizedBook {
 // Demo mode flag - set to true when API quota is exceeded
 let demoMode = false;
 
+// Trending niches cache with 6-hour TTL
+interface TrendingCache {
+  niches: string[];
+  timestamp: number;
+  lastRefreshAttempt: number;
+}
+
+const TRENDING_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+let trendingCache: TrendingCache | null = null;
+
+function getCachedTrendingNiches(): { niches: string[]; timestamp: number } | null {
+  if (!trendingCache) return null;
+  
+  const now = Date.now();
+  const age = now - trendingCache.timestamp;
+  
+  // Return cache if it's still valid (less than 6 hours old)
+  if (age < TRENDING_CACHE_TTL) {
+    return { niches: trendingCache.niches, timestamp: trendingCache.timestamp };
+  }
+  
+  return null;
+}
+
+function setCachedTrendingNiches(niches: string[]): void {
+  trendingCache = {
+    niches,
+    timestamp: Date.now(),
+    lastRefreshAttempt: Date.now(),
+  };
+}
+
+function clearTrendingCache(): void {
+  trendingCache = null;
+}
+
 // Generate demo books based on search term to simulate real data
 function generateDemoBooks(searchTerm: string): NormalizedBook[] {
   const baseBooks = [
@@ -790,14 +826,69 @@ export async function registerRoutes(
     });
   });
 
-  // Trending niches endpoint
+  // Trending niches endpoint with caching
   app.get("/api/trending", async (req, res) => {
     try {
+      // Check cache first
+      const cached = getCachedTrendingNiches();
+      if (cached) {
+        console.log("Returning cached trending niches");
+        return res.json({ 
+          niches: cached.niches, 
+          timestamp: cached.timestamp,
+          cached: true 
+        });
+      }
+
+      // Fetch fresh data
       const niches = await fetchTrendingNiches();
-      res.json({ niches });
+      setCachedTrendingNiches(niches);
+      
+      res.json({ 
+        niches, 
+        timestamp: Date.now(),
+        cached: false 
+      });
     } catch (error: any) {
       console.error("Trending fetch error:", error);
-      res.json({ niches: getDefaultTrendingNiches() });
+      const defaultNiches = getDefaultTrendingNiches();
+      res.json({ 
+        niches: defaultNiches, 
+        timestamp: Date.now(),
+        cached: false,
+        isDefault: true 
+      });
+    }
+  });
+
+  // Force refresh trending niches (clears cache)
+  app.post("/api/trending/refresh", async (req, res) => {
+    try {
+      // Clear the cache to force fresh fetch
+      clearTrendingCache();
+      console.log("Cleared trending cache, fetching fresh data");
+      
+      // Fetch fresh data
+      const niches = await fetchTrendingNiches();
+      setCachedTrendingNiches(niches);
+      
+      res.json({ 
+        niches, 
+        timestamp: Date.now(),
+        cached: false,
+        refreshed: true 
+      });
+    } catch (error: any) {
+      console.error("Trending refresh error:", error);
+      // Return default niches on error but indicate it failed
+      const defaultNiches = getDefaultTrendingNiches();
+      res.status(500).json({ 
+        niches: defaultNiches, 
+        timestamp: Date.now(),
+        cached: false,
+        isDefault: true,
+        error: "Failed to fetch fresh trending data" 
+      });
     }
   });
 

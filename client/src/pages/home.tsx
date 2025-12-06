@@ -1,15 +1,34 @@
 import { Link, useLocation } from "wouter";
 import { MobileLayout } from "@/components/MobileLayout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp, Loader2, History, LogOut, User } from "lucide-react";
+import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp, Loader2, History, LogOut, User, RefreshCw, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+
+function formatTimeAgo(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  
+  if (minutes < 1) return "Just now";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  if (hours === 1) return "1 hour ago";
+  if (hours < 24) return `${hours} hours ago`;
+  return "Over a day ago";
+}
 
 export default function Home() {
   const [idea, setIdea] = useState("");
   const [, setLocation] = useLocation();
   const [trendingNiches, setTrendingNiches] = useState<string[]>([]);
   const [loadingTrending, setLoadingTrending] = useState(true);
+  const [refreshingTrending, setRefreshingTrending] = useState(false);
+  const [trendingTimestamp, setTrendingTimestamp] = useState<number | null>(null);
+  const [trendingError, setTrendingError] = useState<string | null>(null);
+  const [isDefaultData, setIsDefaultData] = useState(false);
   const { user, signOut } = useAuth();
 
   const handleLogout = async () => {
@@ -17,27 +36,51 @@ export default function Home() {
     setLocation('/login');
   };
 
-  useEffect(() => {
-    async function fetchTrending() {
-      try {
-        const response = await fetch("/api/trending");
-        const data = await response.json();
-        if (data.niches && Array.isArray(data.niches)) {
-          setTrendingNiches(data.niches);
+  const fetchTrending = useCallback(async (forceRefresh = false) => {
+    try {
+      setTrendingError(null);
+      
+      const url = forceRefresh ? "/api/trending/refresh" : "/api/trending";
+      const options = forceRefresh ? { method: "POST" } : {};
+      
+      const response = await fetch(url, options);
+      const data = await response.json();
+      
+      if (data.niches && Array.isArray(data.niches)) {
+        setTrendingNiches(data.niches);
+        setTrendingTimestamp(data.timestamp || Date.now());
+        setIsDefaultData(data.isDefault || false);
+        
+        if (data.error) {
+          setTrendingError(data.error);
         }
-      } catch (error) {
-        console.error("Failed to fetch trending niches:", error);
-        setTrendingNiches([
-          "Self-improvement habits for busy professionals",
-          "Cozy mystery with small town setting",
-          "Personal finance for millennials"
-        ]);
-      } finally {
-        setLoadingTrending(false);
       }
+    } catch (error) {
+      console.error("Failed to fetch trending niches:", error);
+      setTrendingError("Unable to load trending niches");
+      setTrendingNiches([
+        "Self-improvement habits for busy professionals",
+        "Cozy mystery with small town setting",
+        "Personal finance for millennials"
+      ]);
+      setTrendingTimestamp(Date.now());
+      setIsDefaultData(true);
     }
-    fetchTrending();
   }, []);
+
+  useEffect(() => {
+    async function loadInitial() {
+      await fetchTrending(false);
+      setLoadingTrending(false);
+    }
+    loadInitial();
+  }, [fetchTrending]);
+
+  const handleRefreshTrending = async () => {
+    setRefreshingTrending(true);
+    await fetchTrending(true);
+    setRefreshingTrending(false);
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,12 +164,14 @@ export default function Home() {
               onChange={(e) => setIdea(e.target.value)}
               placeholder="Describe your book idea..."
               className="w-full h-16 pl-14 pr-4 rounded-[1.5rem] bg-transparent text-lg font-medium placeholder:text-muted-foreground/50 focus:outline-none"
+              data-testid="input-book-idea"
             />
             <div className="p-2">
               <button 
                 type="submit"
                 disabled={!idea.trim()}
                 className="w-full h-14 bg-black text-white rounded-[1.2rem] font-semibold text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] hover:bg-gray-900"
+                data-testid="button-validate"
               >
                 Validate Idea
                 <ArrowRight size={20} />
@@ -141,11 +186,42 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <div className="flex items-center gap-2 mb-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            <TrendingUp size={14} />
-            <span>Trending Niches</span>
-            {loadingTrending && <Loader2 size={12} className="animate-spin" />}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              <TrendingUp size={14} />
+              <span>Trending Niches</span>
+              {(loadingTrending || refreshingTrending) && <Loader2 size={12} className="animate-spin" />}
+            </div>
+            <button
+              onClick={handleRefreshTrending}
+              disabled={loadingTrending || refreshingTrending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-primary/5 hover:bg-primary/10 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="button-refresh-trending"
+            >
+              <RefreshCw size={12} className={refreshingTrending ? "animate-spin" : ""} />
+              Refresh
+            </button>
           </div>
+          
+          {/* Timestamp and status */}
+          <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground">
+            {trendingTimestamp && (
+              <span data-testid="text-trending-timestamp">
+                Updated {formatTimeAgo(trendingTimestamp)}
+              </span>
+            )}
+            {isDefaultData && !trendingError && (
+              <span className="text-amber-600">(sample ideas)</span>
+            )}
+          </div>
+
+          {/* Error message */}
+          {trendingError && (
+            <div className="flex items-center gap-2 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm" data-testid="alert-trending-error">
+              <AlertCircle size={16} />
+              <span>{trendingError}</span>
+            </div>
+          )}
           
           <div className="space-y-3" data-testid="trending-niches-list">
             {loadingTrending ? (
