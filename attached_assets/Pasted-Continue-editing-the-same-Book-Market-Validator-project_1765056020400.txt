@@ -1,0 +1,125 @@
+Continue editing the same Book Market Validator project.
+
+Context:
+- Backend now exposes:
+  - POST /api/book-blueprints/generate
+  - POST /api/book-blueprints/save
+  - GET /api/book-blueprints/:validationId
+- These routes work with the BookBlueprint object in Replit DB.
+- The frontend is React + TypeScript and has a “validation results” view that shows several cards: verdict, metrics, keywords, next steps, etc.
+- That results view already knows the current validationId and the validation result.
+
+Task:
+Add a new React card at the BOTTOM of the results stack called “Book Blueprint (optional)” that lets the user:
+
+- Generate a book blueprint from the current validation with a single button.
+- View and edit the blueprint fields in a simple form.
+- Save changes to the backend.
+
+Do NOT overwhelm the user; keep it clean and minimal.
+
+Requirements for the new card:
+
+1. Data flow and state:
+
+In the component that renders the results cards (or a child), add state for:
+- blueprint (BookBlueprint or null)
+- blueprintForm (a partial copy of the blueprint fields that can be edited)
+- isLoadingBlueprint (boolean)
+- isSavingBlueprint (boolean)
+- blueprintError (string or null)
+
+On mount, or when validationId changes:
+- Call GET /api/book-blueprints/:validationId.
+- If a blueprint exists, store it in blueprint and copy it into blueprintForm.
+- If not, set blueprint to null and blueprintForm to an empty object.
+- Handle errors by setting blueprintError and showing a small message.
+
+2. Card layout:
+
+Add a new card component at the bottom of the existing results stack with:
+
+Title:
+- “Book Blueprint (optional)”
+
+Short description text:
+- Explain in 1–2 short sentences that this step does NOT write the book yet; it just creates a simple, high-level plan that a future writing engine (or the user) can use.
+
+3. Two main UI states:
+
+STATE A: No blueprint yet (blueprint is null)
+
+- Show the short description.
+- Show one primary button:
+
+  Label:
+  - “Generate Book Blueprint from this validation”
+
+  On click:
+  - Call POST /api/book-blueprints/generate with { validationId }.
+  - Show a loading state on the button while the request is in progress.
+  - On success, set blueprint and blueprintForm from the response.
+  - On error, show a small error message in the card.
+
+Keep this visually simple and non-intimidating.
+
+STATE B: Blueprint exists (blueprint is not null)
+
+- Render a simple form bound to blueprintForm with the following fields:
+
+  Group 1 – “Who is this for?”:
+  - Reader Avatar (readerAvatar) – textarea
+  - Primary Promise (primaryPromise) – textarea
+  - Core Problem (coreProblem) – textarea
+
+  Group 2 – “What makes this book unique?”:
+  - Big Differentiator (bigDifferentiator) – textarea
+  - Content Shape (contentShape) – short text input
+  - Tone & Style (toneStyle) – short text input
+  - Comparable Titles (compTitles) – textarea
+  - Positioning Notes (positioningNotes) – textarea
+
+  Group 3 – “Scope & structure”:
+  - Working Title (workingTitle) – text input
+  - Core Topics (coreTopics) – textarea
+  - Target Length (words) (targetLengthWords) – number input
+
+- Each field should:
+  - Have a small, clear label.
+  - Use controlled components bound to blueprintForm.
+  - Update blueprintForm on change.
+
+- At the bottom of the card, add a primary button:
+
+  Label:
+  - “Save Blueprint”
+
+  On click:
+  - Call POST /api/book-blueprints/save with:
+    - validationId
+    - all the fields from blueprintForm that correspond to the BookBlueprint fields.
+  - Show a loading state while saving.
+  - On success:
+    - Update blueprint and blueprintForm with the returned data.
+    - Show a small “Blueprint saved” confirmation message inside the card.
+
+- If blueprintError is set, show it as a small error message, but do not make it visually overwhelming.
+
+4. UX constraints:
+
+- Do NOT make this card visually louder than the verdict or overall summary cards.
+- Use concise labels and short helper text.
+- Treat this clearly as an “optional Step 4” after validation and next steps.
+- The card should feel inviting, not like a required complex form.
+
+5. Sanity check:
+
+When finished:
+- Running a validation should still work exactly as before.
+- On the results screen, I should now see a new “Book Blueprint (optional)” card at the bottom.
+- If there is no blueprint yet, I can click “Generate Book Blueprint from this validation” to create one.
+- Once created, I see the form with pre-filled fields from AI.
+- I can edit fields and click “Save Blueprint” to persist changes.
+- If I reload the same validation results later, the blueprint should load from the backend and show my last saved values.
+
+Please implement the UI and wiring end-to-end, matching the project’s existing styling and patterns.

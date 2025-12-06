@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/MobileLayout";
 import { useEffect, useState } from "react";
-import { validateBookIdea } from "@/lib/api-validator";
+import { validateBookIdea, fetchBlueprint, generateBlueprint, saveBlueprint, type BookBlueprint } from "@/lib/api-validator";
 import type { MarketAnalysis } from "@/lib/mock-validator";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -9,7 +9,7 @@ import {
   BarChart3, Users, DollarSign, Book, TrendingUp, 
   Activity, Award, AlertCircle, Layers, FlaskConical,
   Lightbulb, Target, Tag, FileText, Sparkles, ChevronDown, X,
-  ArrowRightCircle
+  ArrowRightCircle, FileEdit, Loader2, Save
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {

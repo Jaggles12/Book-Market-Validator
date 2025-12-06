@@ -1489,9 +1489,10 @@ export async function registerRoutes(
         },
       };
 
-      // Save to database
+      // Save to database and get the savedResultId
+      let savedResultId: string | null = null;
       try {
-        await storage.saveResult({
+        const savedResult = await storage.saveResult({
           userId,
           niche: idea,
           verdict: analysis.verdict,
@@ -1500,12 +1501,13 @@ export async function registerRoutes(
           keyInsights: suggestions.slice(0, 2).join(" | "),
           fullReportJson: responseData,
         });
+        savedResultId = savedResult.id;
       } catch (saveError) {
         console.error("Failed to save result to database:", saveError);
       }
 
-      // Return Full Analysis
-      res.json(responseData);
+      // Return Full Analysis with savedResultId for blueprint generation
+      res.json({ ...responseData, savedResultId });
     } catch (error: any) {
       console.error("Validation error:", error);
       
