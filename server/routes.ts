@@ -308,46 +308,62 @@ function computeMarketSnapshot(books: NormalizedBook[], genreHint: { category: s
   const oldCount = pubYears.filter((y) => y <= currentYear - 5).length;
   const evergreenSignal = recentCount > 0 && oldCount > 0;
 
-  // Verdict Logic
-  const isFiction = genreHint.category === "fiction";
-  const strongDemandByBSR = bsrBuckets.veryStrong + bsrBuckets.strong >= 3;
-  const moderateDemandByBSR = bsrBuckets.moderate > 0 || bsrBuckets.strong > 0 || bsrBuckets.veryStrong > 0;
-  const veryWeakDemandByBSR = bsrBuckets.veryStrong + bsrBuckets.strong + bsrBuckets.moderate === 0;
-  const veryLowReviews = avgReviews < 20;
-  const okReviewVolume = avgReviews >= 30;
-  const cheapMarketDominated = cheapBookShare > 0.4;
+  // Demand Level based on BSR
+  const highDemandBooks = bsrBuckets.veryStrong + bsrBuckets.strong;
+  let demandLevel: "HIGH" | "MEDIUM" | "LOW";
+  if (highDemandBooks >= 3) {
+    demandLevel = "HIGH";
+  } else if (highDemandBooks >= 1 || bsrBuckets.moderate >= 2) {
+    demandLevel = "MEDIUM";
+  } else {
+    demandLevel = "LOW";
+  }
 
-  let verdict: "GREEN" | "YELLOW" | "RED" = "YELLOW";
-  let verdictReason = "Mixed signals. Some demand and competition — success depends on a clear angle.";
+  // Competition Level based on strong competitors
+  // Matches existing calculation: >5 = High, >2 = Medium, ≤2 = Low
+  let competitionLevel: "HIGH" | "MEDIUM" | "LOW";
+  if (strongCompetitors > 5) {
+    competitionLevel = "HIGH";
+  } else if (strongCompetitors > 2) {
+    competitionLevel = "MEDIUM";
+  } else {
+    competitionLevel = "LOW";
+  }
 
-  if (isFiction) {
-    if ((veryWeakDemandByBSR && veryLowReviews) || (cheapMarketDominated && veryLowReviews)) {
-      verdict = "RED";
-      verdictReason = "Fiction demand looks weak — low review volume and no clear bestsellers.";
-    } else if (dominantAuthors.length > 0 && books.length < 10) {
-      verdict = "RED";
-      verdictReason = "This fiction niche is dominated by a small number of authors.";
-    } else if (strongDemandByBSR && okReviewVolume && !dominantAuthors.length && !cheapMarketDominated) {
-      verdict = "GREEN";
-      verdictReason = "Strong demand validated by BSR and reviews. Multiple authors succeeding.";
-    } else if (moderateDemandByBSR || okReviewVolume) {
+  // Verdict Matrix Lookup
+  // HIGH demand: GREEN (low/med comp), YELLOW (high comp)
+  // MEDIUM demand: GREEN (low comp), YELLOW (med comp), RED (high comp)
+  // LOW demand: YELLOW (low comp), RED (med/high comp)
+  let verdict: "GREEN" | "YELLOW" | "RED";
+  let verdictReason: string;
+
+  if (demandLevel === "HIGH") {
+    if (competitionLevel === "HIGH") {
       verdict = "YELLOW";
-      verdictReason = "Evidence of fiction demand, but not overwhelming. Strong craft and positioning needed.";
+      verdictReason = "High demand but saturated with strong competitors. Differentiation is key.";
+    } else {
+      verdict = "GREEN";
+      verdictReason = "Strong demand with manageable competition. Good opportunity.";
+    }
+  } else if (demandLevel === "MEDIUM") {
+    if (competitionLevel === "LOW") {
+      verdict = "GREEN";
+      verdictReason = "Moderate demand with low competition. Room to establish yourself.";
+    } else if (competitionLevel === "MEDIUM") {
+      verdict = "YELLOW";
+      verdictReason = "Moderate demand and competition. Success requires strong positioning.";
+    } else {
+      verdict = "RED";
+      verdictReason = "Moderate demand but heavy competition. Hard to break through.";
     }
   } else {
-    // Nonfiction logic
-    if (veryWeakDemandByBSR && veryLowReviews) {
-      verdict = "RED";
-      verdictReason = "Very low demand signals. This niche may be too narrow or not validated.";
-    } else if (strongDemandByBSR && strongCompetitors <= 3) {
-      verdict = "GREEN";
-      verdictReason = "Clear demand with room for new entrants. Good opportunity.";
-    } else if (strongCompetitors >= 6 && lowReviewBooks <= 3) {
-      verdict = "RED";
-      verdictReason = "Oversaturated by giants with almost no small players succeeding.";
-    } else if (moderateDemandByBSR) {
+    // LOW demand
+    if (competitionLevel === "LOW") {
       verdict = "YELLOW";
-      verdictReason = "Moderate demand. Success requires differentiation and marketing.";
+      verdictReason = "Low demand but also low competition. Niche may be too small.";
+    } else {
+      verdict = "RED";
+      verdictReason = "Low demand with existing competition. Not recommended.";
     }
   }
 
