@@ -60,6 +60,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn("Warning: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured. Authentication will not work properly.");
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
