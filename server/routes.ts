@@ -404,7 +404,9 @@ Market Stats:
 - Price Range: $${stats.priceMin} - $${stats.priceMax}
 - Verdict Reason: ${stats.verdictReason}
 
-Give exactly 3 strategic, actionable suggestions for this writer. Be specific and tactical.`;
+Give exactly 3 strategic, actionable suggestions for this writer. 
+
+IMPORTANT: Output ONLY the 3 suggestions as plain numbered list (1. 2. 3.). No headings, no bold text, no markdown formatting, no introductions. Start directly with suggestion 1.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -418,7 +420,14 @@ Give exactly 3 strategic, actionable suggestions for this writer. Be specific an
       .split("\n")
       .filter((line) => line.trim().match(/^\d+\.|^-|^•/))
       .map((line) => line.replace(/^\d+\.\s*|^-\s*|^•\s*/, "").trim())
-      .filter((s) => s.length > 10)
+      .filter((s) => {
+        if (s.length <= 10) return false;
+        if (s.includes("**")) return false;
+        if (s.endsWith(":")) return false;
+        if (s.toLowerCase().includes("tactical steps")) return false;
+        if (s.toLowerCase().includes("strategic advice")) return false;
+        return true;
+      })
       .slice(0, 3);
 
     return suggestions.length > 0
