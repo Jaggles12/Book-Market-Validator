@@ -472,15 +472,18 @@ async function fetchTrendingNiches(): Promise<string[]> {
 // Use AI to extract niche themes from book titles
 async function extractNichesFromTitles(titles: string[]): Promise<string[]> {
   try {
-    const prompt = `Analyze these trending Amazon book titles and identify 3 specific, actionable book niche ideas that a new author could write about. Focus on themes, topics, or formats that appear popular.
+    const prompt = `Analyze these trending Amazon book titles and identify 3 book niche ideas. Each niche MUST be exactly 3-5 words - short enough to be a search query.
 
 Book titles:
 ${titles.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
-Return exactly 3 niche ideas as a JSON array of strings. Be specific and descriptive (e.g., "Cozy fantasy romance with found family themes" not just "Fantasy").
+Return exactly 3 niche ideas as a JSON array of strings. Keep each one SHORT (3-5 words max) so it works as a search term.
+
+Good examples: ["cozy holiday mysteries", "habit building guides", "family drama fiction"]
+Bad examples: ["Contemporary fiction exploring complex family dynamics" - TOO LONG]
 
 Example format:
-["Niche idea one", "Niche idea two", "Niche idea three"]`;
+["short niche one", "short niche two", "short niche three"]`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -509,7 +512,7 @@ Example format:
     const niches = response
       .split("\n")
       .map((line) => line.replace(/^\d+[\.\)]\s*|^[-•*]\s*|^["']|["']$/g, "").trim())
-      .filter((line) => line.length > 15 && line.length < 100 && !line.startsWith("[") && !line.startsWith("{"))
+      .filter((line) => line.length > 10 && line.length < 50 && !line.startsWith("[") && !line.startsWith("{"))
       .slice(0, 3);
 
     console.log("Extracted trending niches (fallback):", niches);
@@ -524,9 +527,9 @@ Example format:
 // Fallback trending niches if API fails
 function getDefaultTrendingNiches(): string[] {
   return [
-    "Self-improvement habits for busy professionals",
-    "Cozy mystery with small town setting",
-    "Personal finance for millennials"
+    "productivity habit guides",
+    "cozy small town mysteries",
+    "personal finance basics"
   ];
 }
 
