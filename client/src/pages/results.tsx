@@ -3,12 +3,12 @@ import { MobileLayout } from "@/components/MobileLayout";
 import { useEffect, useState } from "react";
 import { validateBookIdea } from "@/lib/api-validator";
 import type { MarketAnalysis } from "@/lib/mock-validator";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
   BarChart3, Users, DollarSign, Book, TrendingUp, 
   Activity, Award, AlertCircle, Layers, FlaskConical,
-  Lightbulb, Target, Tag, FileText, Sparkles
+  Lightbulb, Target, Tag, FileText, Sparkles, ChevronDown, X
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -19,10 +19,52 @@ import {
 } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
 
+function generateVerdictExplanation(data: MarketAnalysis): string[] {
+  const bullets: string[] = [];
+  const { stats, detailedStats } = data;
+  
+  if (stats?.demandLevel) {
+    const veryStrongCount = detailedStats?.bsrBuckets?.veryStrong ?? 0;
+    const strongCount = detailedStats?.bsrBuckets?.strong ?? 0;
+    const totalStrong = veryStrongCount + strongCount;
+    bullets.push(`Demand: ${stats.demandLevel} (${totalStrong} strong-selling book${totalStrong !== 1 ? 's' : ''} in this niche)`);
+  }
+  
+  if (stats?.competitionLevel) {
+    const giants = detailedStats?.strongCompetitors ?? 0;
+    bullets.push(`Competition: ${stats.competitionLevel} (${giants} giant${giants !== 1 ? 's' : ''} with 1,000+ reviews)`);
+  }
+  
+  if (Array.isArray(detailedStats?.dominantAuthors)) {
+    if (detailedStats.dominantAuthors.length === 0) {
+      bullets.push("Author diversity: Healthy (no single author dominates top positions)");
+    } else {
+      const topAuthor = detailedStats.dominantAuthors[0];
+      bullets.push(`Author dominance: ${topAuthor.name} has ${topAuthor.count} books in top results`);
+    }
+  }
+  
+  const lowReviewBooks = detailedStats?.lowReviewBooks ?? 0;
+  const totalBooks = detailedStats?.totalBooks ?? 0;
+  if (totalBooks > 0) {
+    const lowReviewPct = Math.round((lowReviewBooks / totalBooks) * 100);
+    if (lowReviewPct >= 20) {
+      bullets.push(`New entrant opportunity: ${lowReviewPct}% of books have under 50 reviews`);
+    }
+  }
+  
+  if (detailedStats?.evergreenSignal === true) {
+    bullets.push("Evergreen niche: Both new and older books are selling well");
+  }
+  
+  return bullets;
+}
+
 export default function Validate() {
   const [location, setLocation] = useLocation();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<MarketAnalysis | null>(null);
+  const [showExplanation, setShowExplanation] = useState(false);
   
   const query = new URLSearchParams(window.location.search).get("q") || "";
 
@@ -112,6 +154,68 @@ export default function Validate() {
             {verdictIcon[data.verdict]}
             <h2 className="text-3xl font-bold mb-2">{data.verdict} LIGHT</h2>
             <p className="text-white/90 font-medium leading-snug">{data.verdictReason}</p>
+          </motion.div>
+
+          {/* Why This Rating Toggle */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+          >
+            <button
+              onClick={() => setShowExplanation(!showExplanation)}
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-why-rating"
+            >
+              <span>Why {data.verdict.charAt(0) + data.verdict.slice(1).toLowerCase()}?</span>
+              <ChevronDown 
+                size={16} 
+                className={`transition-transform duration-200 ${showExplanation ? 'rotate-180' : ''}`}
+              />
+            </button>
+            
+            <AnimatePresence>
+              {showExplanation && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-4 mt-2 overflow-hidden"
+                  data-testid="panel-why-rating"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-sm text-foreground">Rating Breakdown</h4>
+                    <button
+                      onClick={() => setShowExplanation(false)}
+                      className="h-6 w-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-muted-foreground"
+                      data-testid="button-close-why-rating"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  {(() => {
+                    const bullets = generateVerdictExplanation(data);
+                    if (bullets.length === 0) {
+                      return (
+                        <p className="text-sm text-muted-foreground italic">
+                          Detailed breakdown not available for this analysis.
+                        </p>
+                      );
+                    }
+                    return (
+                      <ul className="space-y-2">
+                        {bullets.map((bullet, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-foreground/80">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           {/* Quick Stats */}
