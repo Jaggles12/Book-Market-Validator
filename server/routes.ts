@@ -1,12 +1,45 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import axios from "axios";
 import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
 
 const openai = new OpenAI({ 
   apiKey: process.env.OPENAI_API_KEY
 });
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || "",
+  process.env.SUPABASE_ANON_KEY || ""
+);
+
+interface AuthenticatedRequest extends Request {
+  userId?: string;
+}
+
+async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    
+    req.userId = user.id;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Authentication failed" });
+  }
+}
 
 interface RainforestBook {
   title?: string;
@@ -617,6 +650,14 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Supabase config endpoint (anon key is safe to expose - it's designed for public use)
+  app.get("/api/auth/config", (req, res) => {
+    res.json({
+      supabaseUrl: process.env.SUPABASE_URL || "",
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || "",
+    });
+  });
+
   // Trending niches endpoint
   app.get("/api/trending", async (req, res) => {
     try {
@@ -628,9 +669,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/validate", async (req, res) => {
+  app.post("/api/validate", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const { idea } = req.body;
+      const userId = req.userId!;
 
       if (!idea || typeof idea !== "string") {
         return res.status(400).json({ error: "Book idea is required" });
@@ -697,6 +739,7 @@ export async function registerRoutes(
       // Save to database
       try {
         await storage.saveResult({
+          userId,
           niche: idea,
           verdict: analysis.verdict,
           demandScore: demandLevel,
@@ -728,10 +771,11 @@ export async function registerRoutes(
     }
   });
 
-  // Get all saved results
-  app.get("/api/saved-results", async (req, res) => {
+  // Get all saved results for the authenticated user
+  app.get("/api/saved-results", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const results = await storage.getAllResults();
+      const userId = req.userId!;
+      const results = await storage.getAllResultsByUser(userId);
       res.json(results);
     } catch (error: any) {
       console.error("Error fetching saved results:", error);
@@ -739,11 +783,12 @@ export async function registerRoutes(
     }
   });
 
-  // Get a single saved result by ID
-  app.get("/api/saved-results/:id", async (req, res) => {
+  // Get a single saved result by ID for the authenticated user
+  app.get("/api/saved-results/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const { id } = req.params;
-      const result = await storage.getResultById(id);
+      const userId = req.userId!;
+      const result = await storage.getResultById(id, userId);
       if (!result) {
         return res.status(404).json({ error: "Result not found" });
       }
@@ -754,10 +799,11 @@ export async function registerRoutes(
     }
   });
 
-  // Export saved results as CSV
-  app.get("/api/saved-results/export/csv", async (req, res) => {
+  // Export saved results as CSV for the authenticated user
+  app.get("/api/saved-results/export/csv", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const results = await storage.getAllResults();
+      const userId = req.userId!;
+      const results = await storage.getAllResultsByUser(userId);
       
       const sanitizeForCSV = (value: string): string => {
         let sanitized = value.replace(/"/g, '""');
@@ -769,7 +815,7 @@ export async function registerRoutes(
       };
       
       const csvHeader = "id,niche,verdict,demandScore,competitionScore,createdAt\n";
-      const csvRows = results.map(r => 
+      const csvRows = results.map((r: { id: string; niche: string; verdict: string; demandScore: string; competitionScore: string; createdAt: Date }) => 
         `"${sanitizeForCSV(r.id)}","${sanitizeForCSV(r.niche)}","${sanitizeForCSV(r.verdict)}","${sanitizeForCSV(r.demandScore)}","${sanitizeForCSV(r.competitionScore)}","${r.createdAt.toISOString()}"`
       ).join("\n");
       

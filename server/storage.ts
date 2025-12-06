@@ -1,7 +1,7 @@
 import { type User, type InsertUser, type SavedResult, type InsertSavedResult, savedResults } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import pg from "pg";
 
 const pool = new pg.Pool({
@@ -15,8 +15,8 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   saveResult(result: InsertSavedResult): Promise<SavedResult>;
-  getAllResults(): Promise<SavedResult[]>;
-  getResultById(id: string): Promise<SavedResult | undefined>;
+  getAllResultsByUser(userId: string): Promise<SavedResult[]>;
+  getResultById(id: string, userId: string): Promise<SavedResult | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -48,12 +48,15 @@ export class MemStorage implements IStorage {
     return saved;
   }
 
-  async getAllResults(): Promise<SavedResult[]> {
-    return await db.select().from(savedResults).orderBy(desc(savedResults.createdAt));
+  async getAllResultsByUser(userId: string): Promise<SavedResult[]> {
+    return await db.select().from(savedResults)
+      .where(eq(savedResults.userId, userId))
+      .orderBy(desc(savedResults.createdAt));
   }
 
-  async getResultById(id: string): Promise<SavedResult | undefined> {
-    const [result] = await db.select().from(savedResults).where(eq(savedResults.id, id));
+  async getResultById(id: string, userId: string): Promise<SavedResult | undefined> {
+    const [result] = await db.select().from(savedResults)
+      .where(and(eq(savedResults.id, id), eq(savedResults.userId, userId)));
     return result;
   }
 }

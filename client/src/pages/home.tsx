@@ -2,13 +2,20 @@ import { Link, useLocation } from "wouter";
 import { MobileLayout } from "@/components/MobileLayout";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp, Loader2, History } from "lucide-react";
+import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp, Loader2, History, LogOut, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
   const [idea, setIdea] = useState("");
   const [, setLocation] = useLocation();
   const [trendingNiches, setTrendingNiches] = useState<string[]>([]);
   const [loadingTrending, setLoadingTrending] = useState(true);
+  const { user, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    setLocation('/login');
+  };
 
   useEffect(() => {
     async function fetchTrending() {
@@ -53,14 +60,40 @@ export default function Home() {
             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
               <BookOpen size={24} strokeWidth={2.5} />
             </div>
-            <button
-              onClick={() => setLocation("/saved")}
-              className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-border shadow-sm text-sm font-medium text-foreground/80 hover:bg-gray-50 transition-colors"
-              data-testid="button-saved-results"
-            >
-              <History size={16} />
-              Saved
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setLocation("/saved")}
+                className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-border shadow-sm text-sm font-medium text-foreground/80 hover:bg-gray-50 transition-colors"
+                data-testid="button-saved-results"
+              >
+                <History size={16} />
+                Saved
+              </button>
+              <div className="relative group">
+                <button
+                  className="flex items-center gap-2 px-3 py-2 bg-white rounded-full border border-border shadow-sm text-sm font-medium text-foreground/80 hover:bg-gray-50 transition-colors"
+                  data-testid="button-user-menu"
+                >
+                  <User size={16} />
+                </button>
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl border border-border shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="p-3 border-b border-border">
+                    <p className="text-xs text-muted-foreground">Signed in as</p>
+                    <p className="text-sm font-medium text-foreground truncate" data-testid="text-user-email">
+                      {user?.email || 'Unknown'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-3 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    data-testid="button-logout"
+                  >
+                    <LogOut size={16} />
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground mb-3">
             Book Idea<br />
