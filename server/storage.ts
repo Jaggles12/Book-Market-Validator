@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type SavedResult, type InsertSavedResult, savedResults } from "@shared/schema";
+import { type User, type InsertUser, type SavedResult, type InsertSavedResult, savedResults, type BookBlueprint, type InsertBookBlueprint, bookBlueprints } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, desc, and } from "drizzle-orm";
@@ -18,6 +18,9 @@ export interface IStorage {
   getAllResultsByUser(userId: string): Promise<SavedResult[]>;
   getResultById(id: string, userId: string): Promise<SavedResult | undefined>;
   deleteResult(id: string, userId: string): Promise<boolean>;
+  getBlueprint(userId: string, validationId: string): Promise<BookBlueprint | undefined>;
+  saveBlueprint(blueprint: InsertBookBlueprint): Promise<BookBlueprint>;
+  upsertBlueprint(userId: string, validationId: string, data: Partial<InsertBookBlueprint>): Promise<BookBlueprint>;
 }
 
 export class MemStorage implements IStorage {
@@ -66,6 +69,49 @@ export class MemStorage implements IStorage {
       .where(and(eq(savedResults.id, id), eq(savedResults.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async getBlueprint(userId: string, validationId: string): Promise<BookBlueprint | undefined> {
+    const [blueprint] = await db.select().from(bookBlueprints)
+      .where(and(eq(bookBlueprints.userId, userId), eq(bookBlueprints.validationId, validationId)));
+    return blueprint;
+  }
+
+  async saveBlueprint(blueprint: InsertBookBlueprint): Promise<BookBlueprint> {
+    const [saved] = await db.insert(bookBlueprints).values(blueprint).returning();
+    return saved;
+  }
+
+  async upsertBlueprint(userId: string, validationId: string, data: Partial<InsertBookBlueprint>): Promise<BookBlueprint> {
+    const existing = await this.getBlueprint(userId, validationId);
+    
+    if (existing) {
+      const [updated] = await db.update(bookBlueprints)
+        .set({
+          ...data,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(bookBlueprints.userId, userId), eq(bookBlueprints.validationId, validationId)))
+        .returning();
+      return updated;
+    } else {
+      const newBlueprint: InsertBookBlueprint = {
+        userId,
+        validationId,
+        workingTitle: data.workingTitle ?? "",
+        readerAvatar: data.readerAvatar ?? "",
+        primaryPromise: data.primaryPromise ?? "",
+        coreProblem: data.coreProblem ?? "",
+        bigDifferentiator: data.bigDifferentiator ?? "",
+        coreTopics: data.coreTopics ?? "",
+        contentShape: data.contentShape ?? "",
+        targetLengthWords: data.targetLengthWords ?? null,
+        toneStyle: data.toneStyle ?? "",
+        compTitles: data.compTitles ?? "",
+        positioningNotes: data.positioningNotes ?? "",
+      };
+      return this.saveBlueprint(newBlueprint);
+    }
   }
 }
 

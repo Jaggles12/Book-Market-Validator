@@ -1,0 +1,57 @@
+You are editing my existing Book Market Validator project.
+
+Context:
+- Backend: Node + TypeScript + Express.
+- The app already stores validation results in Replit’s own database (Replit DB or a similar wrapper).
+- Supabase is used ONLY for authentication and to attach a userId to the request. Do NOT move any data storage to Supabase.
+- Frontend: React + TypeScript.
+
+Task:
+Add a new “BookBlueprint” data model and DB helpers, using the SAME Replit DB mechanism that is already used for validation results.
+
+1. Find where validation results are stored in Replit DB. Use that same pattern (same client, same style of keys or collections).
+
+2. Create a new TypeScript interface named BookBlueprint in the shared types file (wherever other interfaces are defined). It should include these fields, using camelCase names:
+
+- id: string                    // unique id for the blueprint
+- userId: string                // authenticated user id
+- validationId: string          // the validation this blueprint is based on
+
+- workingTitle: string
+- readerAvatar: string          // one-paragraph description of target reader
+- primaryPromise: string        // one-sentence transformation promise
+- coreProblem: string           // main pain or struggle addressed
+- bigDifferentiator: string     // how this book stands out in the market
+- coreTopics: string            // comma-separated or list of key topics
+- contentShape: string          // e.g. “30-day devotional”, “short how-to guide”, “children’s picture book”
+- targetLengthWords: number | null
+- toneStyle: string             // e.g. “warm pastoral”, “no-nonsense tactical”
+- compTitles: string            // comparable titles and notes
+- positioningNotes: string      // strategic notes for how to position the book
+
+- createdAt: string             // ISO timestamp string
+- updatedAt: string
+
+3. In the same file where you interact with Replit DB (for example db.ts or similar), add helper functions that:
+
+- Get a blueprint for a given userId and validationId.
+- Save a new blueprint.
+- Upsert (create or update) a blueprint for a given userId and validationId.
+
+Use whatever key style you are already using for validations, for example a key pattern like:
+“book_blueprint:${userId}:${validationId}”.
+
+Behavior rules:
+
+- There should be at most one BookBlueprint per (userId, validationId) pair.
+- When upserting:
+  - If a blueprint already exists, update its fields and set updatedAt to now.
+  - If none exists, create a new blueprint:
+    - Generate a new id (follow the project’s existing pattern for IDs).
+    - Set createdAt and updatedAt to now.
+    - Fill any missing optional fields with sensible defaults (e.g. empty strings, null for targetLengthWords).
+
+IMPORTANT:
+- Do not change how validations are stored.
+- Do not introduce Supabase storage here.
+- Keep to the project’s existing TypeScript and DB patterns.
