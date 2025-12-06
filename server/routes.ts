@@ -1762,5 +1762,174 @@ export async function registerRoutes(
     }
   });
 
+  // =====================================================
+  // BOOK BLUEPRINT ROUTES
+  // =====================================================
+
+  // Generate a new book blueprint using OpenAI
+  app.post("/api/book-blueprints/generate", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const { validationId } = req.body;
+
+      if (!validationId || typeof validationId !== "string") {
+        return res.status(400).json({ success: false, error: "validationId is required" });
+      }
+
+      const validation = await storage.getResultById(validationId, userId);
+      if (!validation) {
+        return res.status(404).json({ success: false, error: "Validation not found or not owned by this user" });
+      }
+
+      const analysis = validation.fullReportJson as any || {};
+      const stats = analysis.stats || {};
+      const detailedStats = analysis.detailedStats || {};
+      const deepAnalysis = analysis.deepAnalysis || {};
+      const genre = analysis.genre || {};
+
+      const promptContext = `
+You are a book development strategist helping an author create a focused book blueprint.
+
+Here is the market validation data for their book idea:
+
+NICHE INPUT: ${validation.niche}
+VERDICT: ${analysis.verdict || "N/A"} - ${analysis.verdictReason || "N/A"}
+GENRE: ${genre.category || "N/A"} / ${genre.subtype || "N/A"}
+FRIENDLY LABEL: ${analysis.friendlyGenreLabel || "N/A"}
+
+MARKET METRICS:
+- Average Rating: ${stats.avgRating || "N/A"}
+- Average Reviews: ${detailedStats.avgReviews || "N/A"}
+- Price Range: $${detailedStats.priceMin || "?"} - $${detailedStats.priceMax || "?"}
+- Strong Competitors (1000+ reviews): ${detailedStats.strongCompetitors || 0}
+- Mid-Tier Competitors: ${detailedStats.midCompetitors || 0}
+- Low Review Books (<50): ${detailedStats.lowReviewBooks || 0}
+
+KEYWORDS:
+- Core Keywords: ${(deepAnalysis.coreKeywords || []).join(", ") || "N/A"}
+- White Space Keywords: ${(deepAnalysis.whiteSpaceKeywords || []).join(", ") || "N/A"}
+
+NICHE OPPORTUNITIES: ${(deepAnalysis.nicheOpportunities || []).join("; ") || "N/A"}
+FORMAT GAPS: ${(deepAnalysis.formatGaps || []).join("; ") || "N/A"}
+
+Based on this data, create a book blueprint. Return STRICT JSON with these exact keys (snake_case):
+
+{
+  "working_title": "A compelling working title for the book",
+  "reader_avatar": "One paragraph describing the ideal reader - their situation, struggles, and aspirations",
+  "primary_promise": "One sentence describing the transformation or outcome the reader will achieve",
+  "core_problem": "The main pain, struggle, or challenge this book addresses",
+  "big_differentiator": "What makes this book stand out from competitors in the market",
+  "core_topics": "Comma-separated list of 5-7 key topics the book will cover",
+  "content_shape": "The format/structure (e.g., '30-day devotional', 'step-by-step guide', '12 chapters with exercises')",
+  "target_length_words": 25000,
+  "tone_style": "The voice and style (e.g., 'warm and encouraging', 'no-nonsense tactical', 'conversational with humor')",
+  "comp_titles": "2-3 comparable titles that readers of this book might also enjoy, with brief notes on how yours differs",
+  "positioning_notes": "Strategic notes on how to position this book for success in the market"
+}
+
+IMPORTANT:
+- Keep each response SHORT and CLEAR (1-3 sentences for text fields).
+- target_length_words should be a number (integer), not a string.
+- Make core_topics a comma-separated string.
+- Focus on being specific and actionable, not generic.
+- Return ONLY valid JSON, no markdown or extra text.
+`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: promptContext }],
+        temperature: 0.7,
+        max_tokens: 1500,
+      });
+
+      const responseText = completion.choices[0]?.message?.content?.trim() || "";
+      
+      let parsed: any;
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error("No JSON object found in response");
+        }
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error("Failed to parse OpenAI response:", responseText);
+        return res.status(500).json({ success: false, error: "Failed to parse AI response" });
+      }
+
+      const blueprintData = {
+        workingTitle: parsed.working_title || "",
+        readerAvatar: parsed.reader_avatar || "",
+        primaryPromise: parsed.primary_promise || "",
+        coreProblem: parsed.core_problem || "",
+        bigDifferentiator: parsed.big_differentiator || "",
+        coreTopics: parsed.core_topics || "",
+        contentShape: parsed.content_shape || "",
+        targetLengthWords: typeof parsed.target_length_words === "number" ? parsed.target_length_words : null,
+        toneStyle: parsed.tone_style || "",
+        compTitles: parsed.comp_titles || "",
+        positioningNotes: parsed.positioning_notes || "",
+      };
+
+      const blueprint = await storage.upsertBlueprint(userId, validationId, blueprintData);
+
+      res.json({ success: true, data: blueprint });
+    } catch (error: any) {
+      console.error("Error generating book blueprint:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to generate blueprint" });
+    }
+  });
+
+  // Save user-edited blueprint fields
+  app.post("/api/book-blueprints/save", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const { validationId, ...fields } = req.body;
+
+      if (!validationId || typeof validationId !== "string") {
+        return res.status(400).json({ success: false, error: "validationId is required" });
+      }
+
+      const allowedFields = [
+        "workingTitle", "readerAvatar", "primaryPromise", "coreProblem",
+        "bigDifferentiator", "coreTopics", "contentShape", "targetLengthWords",
+        "toneStyle", "compTitles", "positioningNotes"
+      ];
+
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (fields[key] !== undefined) {
+          updateData[key] = fields[key];
+        }
+      }
+
+      const blueprint = await storage.upsertBlueprint(userId, validationId, updateData);
+
+      res.json({ success: true, data: blueprint });
+    } catch (error: any) {
+      console.error("Error saving book blueprint:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to save blueprint" });
+    }
+  });
+
+  // Fetch an existing blueprint for a validation
+  app.get("/api/book-blueprints/:validationId", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const { validationId } = req.params;
+
+      if (!validationId) {
+        return res.status(400).json({ success: false, error: "validationId is required" });
+      }
+
+      const blueprint = await storage.getBlueprint(userId, validationId);
+
+      res.json({ success: true, data: blueprint || null });
+    } catch (error: any) {
+      console.error("Error fetching book blueprint:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to fetch blueprint" });
+    }
+  });
+
   return httpServer;
 }

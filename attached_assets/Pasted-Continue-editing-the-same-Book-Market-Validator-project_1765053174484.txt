@@ -1,0 +1,92 @@
+Continue editing the same Book Market Validator project.
+
+Context:
+- There is now a BookBlueprint interface and Replit DB helpers for:
+  - getting a blueprint for (userId, validationId),
+  - saving a blueprint,
+  - upserting a blueprint.
+- Validation results are already stored and retrievable from Replit DB.
+- Supabase is used for auth only and adds userId to the request (use the existing authMiddleware and AuthenticatedRequest type).
+- The app already uses OpenAI somewhere to analyze markets; reuse that existing OpenAI client.
+
+Task:
+Add three new Express API endpoints for book blueprints:
+
+1) POST /api/book-blueprints/generate
+
+Goal:
+Given a validationId, generate a new BookBlueprint (or update an existing one) using OpenAI and the existing validation data.
+
+Behavior:
+- Route should be protected with the existing authMiddleware.
+- Request body: { validationId: string }.
+- Steps:
+  1. Read userId from the authenticated request.
+  2. Fetch the validation for this validationId and userId using the existing validation storage (Replit DB). If not found or not owned by this user, return an error.
+  3. Build an OpenAI prompt that includes:
+     - nicheInput
+     - verdict and verdictReason
+     - genreCategory
+     - core keywords and whitespace keywords
+     - key metrics like avgRating, avgReviews, priceMin, priceMax, strongCompetitors, etc.
+  4. Ask OpenAI to return STRICT JSON with the following keys (snake_case in the prompt):
+
+     working_title
+     reader_avatar
+     primary_promise
+     core_problem
+     big_differentiator
+     core_topics
+     content_shape
+     target_length_words
+     tone_style
+     comp_titles
+     positioning_notes
+
+     In the prompt, instruct it to:
+     - Keep each response short and clear (1–3 sentences for text fields).
+     - Make core_topics a short list or comma-separated string.
+     - Keep everything focused and non-overwhelming.
+
+  5. Parse the JSON from the model safely; if parsing fails, return a clear error.
+  6. Use the upsertBookBlueprint helper with (userId, validationId, parsed fields) to create or update the blueprint. Set createdAt/updatedAt in the helper as needed.
+  7. Return JSON: { success: true, data: blueprint }.
+
+- On any error, respond with { success: false, error: "message" } and an appropriate HTTP status.
+
+2) POST /api/book-blueprints/save
+
+Goal:
+Save user-edited blueprint fields for a given validation.
+
+Behavior:
+- Route should be protected with authMiddleware.
+- Request body should contain:
+  - validationId: string
+  - any subset of editable fields from BookBlueprint:
+    workingTitle, readerAvatar, primaryPromise, coreProblem, bigDifferentiator,
+    coreTopics, contentShape, targetLengthWords, toneStyle, compTitles, positioningNotes.
+- Steps:
+  1. Read userId from the request.
+  2. Call the upsertBookBlueprint helper with (userId, validationId, provided fields).
+  3. Return { success: true, data: updatedBlueprint }.
+- On error, return { success: false, error: "message" }.
+
+3) GET /api/book-blueprints/:validationId
+
+Goal:
+Fetch an existing blueprint for the given validation and current user.
+
+Behavior:
+- Route should be protected with authMiddleware.
+- Steps:
+  1. Read userId and validationId (from req.params).
+  2. Use the getBookBlueprint helper to find the blueprint for (userId, validationId).
+  3. If found, return { success: true, data: blueprint }.
+  4. If not found, return { success: true, data: null }.
+- On error, return { success: false, error: "message" }.
+
+IMPORTANT:
+- Use the existing OpenAI client; don’t create a brand new configuration unless necessary.
+- Do NOT store anything in Supabase; all blueprint data stays in Replit DB.
+- Do not change existing validation routes or behavior.
