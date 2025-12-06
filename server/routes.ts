@@ -643,6 +643,179 @@ function computeMarketSnapshot(books: NormalizedBook[], genreHint: { category: s
   };
 }
 
+// Niche Extraction Layer - Convert user input (titles, ideas) into search-friendly market phrases
+// This ensures full book titles like "The Little Cloud Who Lost His Rain" become
+// searchable market phrases like "children's book about feelings"
+async function extractNicheFromIdea(userInput: string): Promise<{ niche: string; isExtracted: boolean }> {
+  const input = userInput.trim();
+  const words = input.split(/\s+/);
+  const wordCount = words.length;
+  const lowerInput = input.toLowerCase();
+  
+  // Generic niche indicator words - if the input contains these, it's likely already a market phrase
+  const nicheIndicators = [
+    "book about", "books about", "guide to", "how to",
+    "self-help", "self help", "devotional", "journal", "workbook",
+    "cookbook", "coloring book", "activity book", "picture book",
+    "romance", "thriller", "mystery", "fantasy", "fiction", "nonfiction",
+    "for beginners", "for kids", "for children", "for adults", "for women", "for men",
+    "parenting", "business", "productivity", "motivation", "spirituality",
+    "weight loss", "diet", "fitness", "meditation", "mindfulness",
+  ];
+  
+  const hasNicheIndicator = nicheIndicators.some(indicator => lowerInput.includes(indicator));
+  
+  // Title indicators - if input has these patterns, it's likely a book title needing extraction
+  // Note: We avoid simple title-case detection as it catches legitimate niche phrases like "Self-Help Books"
+  const titleIndicators = [
+    /^the\s+\w+\s+\w+/i,           // Starts with "The" followed by 2+ words (The Little Cloud...)
+    /:\s+/,                        // Has colon (subtitle)
+    /—/,                           // Em dash
+    /'s\s+\w+\s+\w+/i,             // Possessive with 2+ following words (Charlotte's Web, etc.)
+    /who\s+\w+|where\s+\w+/i,      // Story-like phrases with continuation
+  ];
+  
+  const hasTitleIndicator = titleIndicators.some(pattern => pattern.test(input));
+  
+  // Determine if this is a generic niche phrase that should pass through
+  // Key insight: if input has strong niche indicators, trust them over weak title patterns
+  // The possessive pattern can match niches like "children's book about emotions" so we prioritize niche indicators
+  const isGenericNiche = hasNicheIndicator && wordCount <= 8;
+  
+  // Only require LLM extraction if it has title indicators AND no niche indicators
+  const needsLLMExtraction = hasTitleIndicator && !hasNicheIndicator;
+  
+  // Also extract if it's a long phrase (>6 words) without niche indicators - likely a title or complex idea
+  const isLongUnknownPhrase = wordCount > 6 && !hasNicheIndicator;
+  
+  if (isGenericNiche && !needsLLMExtraction) {
+    console.log(`Input "${input}" appears to be a generic niche phrase, using directly`);
+    return { niche: input, isExtracted: false };
+  }
+  
+  // If we reach here, we're calling the LLM - this means input needs transformation.
+  // If LLM fails, we MUST use fallback, never return the original title.
+  
+  // Helper function to create a fallback niche based on genre detection
+  function createFallbackNiche(text: string): string {
+    const genre = detectGenre(text);
+    const genreToNiche: Record<string, string> = {
+      "fiction": "fiction books",
+      "fantasy": "fantasy fiction books",
+      "romance": "romance novels",
+      "mystery": "mystery thriller books",
+      "thriller": "thriller suspense books",
+      "horror": "horror fiction books",
+      "science_fiction": "science fiction books",
+      "general_fiction": "literary fiction",
+      "religion_spirituality": "christian inspirational books",
+      "devotional": "daily devotional books",
+      "bible_study": "bible study guides",
+      "prayer": "prayer and spirituality books",
+      "spiritual_growth": "spiritual growth books",
+      "christian_living": "christian living books",
+      "christian": "christian books",
+      "self_help": "self-help personal development",
+      "habits": "habit building books",
+      "productivity": "productivity books",
+      "mindset": "mindset and success books",
+      "motivation": "motivational self-help",
+      "personal_development": "personal development books",
+      "health_wellness": "health and wellness books",
+      "fitness": "fitness exercise books",
+      "nutrition": "nutrition diet books",
+      "mindfulness": "meditation mindfulness books",
+      "wellness": "wellness lifestyle books",
+      "psychology": "psychology self-help",
+      "mental_health": "mental health books",
+      "business": "business books",
+      "entrepreneurship": "entrepreneurship startup books",
+      "leadership": "leadership management books",
+      "marketing": "marketing strategy books",
+      "career_development": "career development books",
+      "family_relationships": "family parenting books",
+      "parenting": "parenting books",
+      "marriage": "marriage relationship books",
+      "relationships": "relationships self-help",
+      "family": "family life books",
+      "education": "education learning books",
+      "learning": "learning education books",
+      "finance": "personal finance books",
+      "investing": "investing money books",
+      "personal_finance": "personal finance budgeting",
+      "journal": "guided journals",
+      "workbook": "workbooks guides",
+    };
+    
+    // Try subtype first, then category
+    const niche = genreToNiche[genre.subtype] || genreToNiche[genre.category] || "popular books";
+    return niche;
+  }
+
+  const prompt = `You are a book market analyst. Given the user's book idea or title, extract a broad, Amazon-searchable niche phrase.
+
+User Input: "${input}"
+
+RULES:
+1. Output a generic market niche phrase, NOT the literal title
+2. Use 3-6 words that describe the market category
+3. Focus on the target audience + topic (e.g., "children's book about emotions", "self-help for anxiety")
+4. Never include specific character names, places, or creative elements from the title
+5. Think about what a reader would search on Amazon to find similar books
+6. NEVER output the exact input text - always transform it into a market category
+
+EXAMPLES:
+- "The Little Cloud Who Lost His Rain: A Story About Feelings" → "children's book about emotions"
+- "Atomic Habits: An Easy & Proven Way to Build Good Habits" → "habit building self-help"
+- "The Midnight Library: A Novel" → "literary fiction about life choices"
+- "Becoming: Michelle Obama's Memoir" → "celebrity memoir autobiography"
+- "The 7 Habits of Highly Effective People" → "personal development productivity"
+- "Goodnight Moon" → "children's bedtime stories"
+- "The Very Hungry Caterpillar" → "children's picture book"
+- "Where the Wild Things Are" → "children's adventure picture book"
+- "Charlotte's Web" → "children's classic animal stories"
+
+OUTPUT ONLY the niche phrase, nothing else. No quotes, no explanation.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 50,
+    });
+
+    const response = completion.choices[0]?.message?.content?.trim() || "";
+    
+    // Clean up the response - remove quotes, extra punctuation but preserve casing
+    const cleanedNiche = response
+      .replace(/^["']|["']$/g, "")
+      .replace(/^\*+|\*+$/g, "")
+      .trim();
+    
+    // Validate: must be different from original and have reasonable word count
+    const nicheWordCount = cleanedNiche.split(/\s+/).length;
+    const isDifferentFromOriginal = cleanedNiche.toLowerCase() !== input.toLowerCase();
+    
+    if (cleanedNiche && nicheWordCount >= 2 && nicheWordCount <= 8 && isDifferentFromOriginal) {
+      console.log(`Niche extraction: "${input}" → "${cleanedNiche}"`);
+      return { niche: cleanedNiche, isExtracted: true };
+    }
+    
+    // We're in the LLM path, so if LLM fails, ALWAYS use genre-based fallback
+    // Never return the original input from here - we explicitly decided it needs transformation
+    const fallbackNiche = createFallbackNiche(input);
+    console.log(`LLM extraction failed, using genre-based fallback: "${input}" → "${fallbackNiche}"`);
+    return { niche: fallbackNiche, isExtracted: true };
+  } catch (error) {
+    console.error("Niche extraction error:", error);
+    // On error in LLM path, always use genre-based fallback
+    const fallbackNiche = createFallbackNiche(input);
+    console.log(`Niche extraction error, using genre-based fallback: "${fallbackNiche}"`);
+    return { niche: fallbackNiche, isExtracted: true };
+  }
+}
+
 // Generate AI Suggestions
 async function generateSuggestions(
   idea: string,
@@ -1126,11 +1299,16 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Book idea is required" });
       }
 
-      // Step 1: Detect Genre
+      // Step 0: Extract niche from user input (converts full titles to searchable market phrases)
+      // This ensures "The Little Cloud Who Lost His Rain" becomes "children's book about emotions"
+      const { niche: searchTerm, isExtracted } = await extractNicheFromIdea(idea);
+      console.log(`Niche extraction result: input="${idea}" → searchTerm="${searchTerm}" (extracted=${isExtracted})`);
+
+      // Step 1: Detect Genre (use original idea for better genre detection context)
       const genre = detectGenre(idea);
 
-      // Step 2: Fetch Amazon Data (may use demo mode if API unavailable)
-      const { books, isDemo } = await fetchAmazonBooks(idea);
+      // Step 2: Fetch Amazon Data using the extracted niche phrase
+      const { books, isDemo } = await fetchAmazonBooks(searchTerm);
 
       // Step 3: Compute Market Stats
       const analysis = computeMarketSnapshot(books, genre);
@@ -1152,6 +1330,7 @@ export async function registerRoutes(
         verdictReason: analysis.verdictReason,
         genre,
         isDemo,
+        searchTerm: isExtracted ? searchTerm : null,
         stats: {
           avgPrice: (analysis.priceMin && analysis.priceMax) 
             ? (analysis.priceMin + analysis.priceMax) / 2 
