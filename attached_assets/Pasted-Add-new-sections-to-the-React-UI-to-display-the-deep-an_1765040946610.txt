@@ -1,0 +1,47 @@
+Add new sections to the React UI to display the deep analysis
+
+I’m working in a React (or React Native) project that shows the results for a niche search like “daily devotional”.
+The existing result screen currently shows:
+– A header with the search term
+– A large verdict card (green/yellow/red with a short sentence)
+– Four metric cards for Competition, Demand, Avg Price, and Genre
+– A “Deep Dive Analysis” accordion with BSR strength
+– A “Competition” accordion with Giants/Mid-tier/New review tiers
+– A “Pricing Strategy” section with min/median/max and a short note
+– A short “Strategic Advice” section with three generic tips
+– A “Top Competitors” row showing book covers and ratings.
+
+The backend has now been extended to return a richer analysis object with these additional fields:
+– nicheOpportunities[] (list of underserved audiences or angles)
+– formatGaps[] (e.g., 30-day, 90-day formats, journaling hybrids)
+– idealReader (short description)
+– positioningStatement (one sentence)
+– differentiationAngles[] (bullet list)
+– coreKeywords[]
+– whiteSpaceKeywords[]
+– suggestedCategories[]
+– bookBlueprint { recommendedLength, sectionThemes[], dailyStructure }
+– titleIdeas[] { title, subtitle }.
+
+I want you to update the result screen to include four new cards below the existing “Strategic Advice” section:
+
+A “Niche Opportunities” card that shows bullets from nicheOpportunities and formatGaps. Use a title and a simple bullet list.
+
+A “Positioning & Ideal Reader” card that shows:
+– A small subheading “Ideal Reader” with the idealReader text
+– A subheading “Positioning” with the positioningStatement
+– A subheading “You Can Stand Out By” with bullets from differentiationAngles.
+
+A “Keywords & Categories” card that displays coreKeywords and whiteSpaceKeywords as pill-style chips, and suggestedCategories as a bullet list.
+
+A “Book Blueprint & Title Ideas” card that:
+– Shows the recommended length (bookBlueprint.recommendedLength) and section themes as a short bullet outline
+– Shows the daily structure as one concise line (e.g., “Scripture → Reflection → Journal Prompt”)
+– Lists 3–5 titleIdeas with the title in bold and subtitle in lighter text.
+
+Please:
+– Reuse whatever Card or Section components we already have so the style matches the current UI.
+– Make each new block either a separate Card or an accordion/expandable panel if that fits our component library.
+– Keep text compact: short paragraphs or bullet lists; no long scrollable walls of text on mobile.
+– Safely handle missing data (if a field is undefined, hide that subsection instead of crashing).
+– Show me the updated React component(s) and explain briefly where the new analysis fields are pulled from the API response and how they’re passed into the UI components.

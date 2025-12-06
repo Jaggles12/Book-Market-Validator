@@ -13,6 +13,40 @@ export type Book = {
   publicationYear: number;
 };
 
+export type TitleIdea = {
+  title: string;
+  subtitle: string;
+  hook?: string;
+};
+
+export type BookBlueprint = {
+  format?: string;
+  recommendedLength?: string;
+  totalDays?: number;
+  sections?: { name: string; days?: number; theme?: string }[];
+  sectionThemes?: string[];
+  dailyStructure?: string[] | string;
+  uniqueElements?: string[];
+};
+
+export type DeepAnalysis = {
+  nicheOpportunities?: string[];
+  formatGaps?: string[];
+  idealReader?: {
+    demographics?: string;
+    psychographics?: string;
+    painPoints?: string[];
+    desiredOutcome?: string;
+  } | string;
+  positioningStatement?: string;
+  differentiationAngles?: string[];
+  coreKeywords?: string[];
+  whiteSpaceKeywords?: string[];
+  suggestedCategories?: string[];
+  bookBlueprint?: BookBlueprint;
+  titleIdeas?: TitleIdea[];
+};
+
 export type MarketAnalysis = {
   verdict: "GREEN" | "YELLOW" | "RED";
   verdictReason: string;
@@ -46,6 +80,7 @@ export type MarketAnalysis = {
   };
   books: Book[];
   suggestions: string[];
+  deepAnalysis?: DeepAnalysis;
 };
 
 // 1. Genre Detection (Copied from source)
@@ -193,6 +228,111 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
         suggestions = ["Build an audience on social media first.", "Focus on direct sales.", "Consider a unique angle or hybrid genre."];
       }
 
+      const deepAnalysis: DeepAnalysis = {
+        nicheOpportunities: [
+          `${genre.subtype} readers who want quick, actionable content`,
+          `Busy professionals seeking ${genre.category} guidance in bite-sized format`,
+          `First-time authors in the ${genre.subtype} space looking for frameworks`,
+          `Parents seeking ${genre.category} content for family application`,
+        ],
+        formatGaps: [
+          "30-day structured programs are underrepresented",
+          "Interactive workbook companions are lacking",
+          "Audio-first content with journal supplements",
+          "Visual learner editions with infographics",
+        ],
+        idealReader: {
+          demographics: "Adults 25-55, primarily women, college-educated, middle income",
+          psychographics: "Values personal growth, seeks practical solutions, time-conscious",
+          painPoints: [
+            "Overwhelmed by information overload",
+            "Struggling to implement advice from other books",
+            "Wants structured, step-by-step guidance",
+            "Needs accountability and measurable progress",
+          ],
+          desiredOutcome: "Clear transformation with tangible daily habits and visible progress markers",
+        },
+        positioningStatement: `The only ${genre.subtype} book that combines practical daily exercises with proven frameworks for lasting change.`,
+        differentiationAngles: [
+          "Include weekly progress checkpoints unlike competitors",
+          "Add QR codes linking to bonus video content",
+          "Feature real reader success stories and testimonials",
+          "Provide a companion mobile app or PDF tracker",
+          "Offer a money-back guarantee mentioned on cover",
+          "Partner with influencers for endorsement quotes",
+        ],
+        coreKeywords: [
+          genre.subtype,
+          `${genre.subtype} book`,
+          `${genre.category} guide`,
+          "self improvement",
+          "personal development",
+          "daily habits",
+          "30 day challenge",
+          "workbook",
+          "journal",
+          "transformation",
+        ],
+        whiteSpaceKeywords: [
+          `${genre.subtype} for beginners`,
+          `simple ${genre.subtype}`,
+          `${genre.subtype} workbook`,
+          `${genre.subtype} journal`,
+          `quick ${genre.subtype}`,
+          `modern ${genre.subtype}`,
+        ],
+        suggestedCategories: [
+          `Books > ${genre.category === 'fiction' ? 'Literature & Fiction' : 'Self-Help'}`,
+          `Books > ${genre.category === 'fiction' ? 'Genre Fiction' : 'Personal Transformation'}`,
+          `Kindle eBooks > ${genre.category === 'fiction' ? 'Fiction' : 'Health, Fitness & Dieting'}`,
+          `Books > Reference > Journals & Workbooks`,
+        ],
+        bookBlueprint: {
+          format: "30-Day Guided Program",
+          totalDays: 30,
+          sections: [
+            { name: "Foundation Week", days: 7, theme: "Building core understanding" },
+            { name: "Implementation Phase", days: 14, theme: "Daily practice and habit formation" },
+            { name: "Integration Week", days: 7, theme: "Long-term sustainability" },
+            { name: "Bonus Resources", theme: "Templates, checklists, and references" },
+          ],
+          dailyStructure: ["Opening Quote", "Core Lesson (500 words)", "Reflection Questions", "Action Step", "Journal Prompt"],
+          uniqueElements: [
+            "Weekly milestone celebrations",
+            "Progress tracking charts",
+            "Community challenge prompts",
+            "Expert tip sidebars",
+          ],
+        },
+        titleIdeas: [
+          {
+            title: `The 30-Day ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Challenge`,
+            subtitle: "A Daily Guide to Lasting Transformation",
+            hook: "Transform your life in just 30 days with this proven system",
+          },
+          {
+            title: `${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Made Simple`,
+            subtitle: "The Busy Person's Guide to Real Results",
+            hook: "Finally, a practical approach that fits your schedule",
+          },
+          {
+            title: `Unlock Your ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Potential`,
+            subtitle: "Daily Exercises for Breakthrough Growth",
+            hook: "Small daily actions that create massive results",
+          },
+          {
+            title: `The ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Workbook`,
+            subtitle: "Interactive Exercises for Personal Mastery",
+            hook: "Write your way to transformation",
+          },
+          {
+            title: `Rise & ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)}`,
+            subtitle: "Morning Rituals for Daily Success",
+            hook: "Start each day with purpose and clarity",
+          },
+        ],
+      };
+
       resolve({
         verdict,
         verdictReason,
@@ -218,9 +358,10 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
           cheapBookShare,
           premiumBookShare,
         },
-        books: books.sort((a, b) => a.rank - b.rank), // Return sorted by rank
+        books: books.sort((a, b) => a.rank - b.rank),
         suggestions,
+        deepAnalysis,
       });
-    }, 2500); // 2.5s simulated delay
+    }, 2500);
   });
 }
