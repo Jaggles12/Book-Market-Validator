@@ -422,10 +422,129 @@ Give exactly 3 strategic, actionable suggestions for this writer. Be specific an
   }
 }
 
+// Fetch trending book niches by searching for current bestsellers
+async function fetchTrendingNiches(): Promise<string[]> {
+  const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY;
+  
+  if (!RAINFOREST_API_KEY) {
+    throw new Error("RAINFOREST_API_KEY not configured");
+  }
+
+  try {
+    // Search for current trending books using a broad search term
+    const params = {
+      api_key: RAINFOREST_API_KEY,
+      type: "search",
+      amazon_domain: "amazon.com",
+      search_term: "bestseller books 2024 2025",
+      sort_by: "bestseller_rankings",
+      number_of_results: 30,
+    };
+
+    const response = await axios.get("https://api.rainforestapi.com/request", {
+      params,
+    });
+
+    const products = response.data.search_results || [];
+    console.log(`Fetched ${products.length} trending books from Amazon search`);
+
+    if (products.length === 0) {
+      return getDefaultTrendingNiches();
+    }
+
+    // Extract book titles for analysis
+    const bookTitles = products
+      .slice(0, 20)
+      .map((p: any) => p.title || "")
+      .filter((t: string) => t.length > 0);
+
+    // Use OpenAI to identify trending themes/niches from these titles
+    const trendingNiches = await extractNichesFromTitles(bookTitles);
+    
+    return trendingNiches.length > 0 ? trendingNiches : getDefaultTrendingNiches();
+  } catch (error: any) {
+    // Log error safely without exposing API keys
+    console.error("Error fetching trending niches:", error?.message || "Unknown error");
+    return getDefaultTrendingNiches();
+  }
+}
+
+// Use AI to extract niche themes from book titles
+async function extractNichesFromTitles(titles: string[]): Promise<string[]> {
+  try {
+    const prompt = `Analyze these trending Amazon book titles and identify 3 specific, actionable book niche ideas that a new author could write about. Focus on themes, topics, or formats that appear popular.
+
+Book titles:
+${titles.map((t, i) => `${i + 1}. ${t}`).join("\n")}
+
+Return exactly 3 niche ideas as a JSON array of strings. Be specific and descriptive (e.g., "Cozy fantasy romance with found family themes" not just "Fantasy").
+
+Example format:
+["Niche idea one", "Niche idea two", "Niche idea three"]`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+    });
+
+    const response = completion.choices[0]?.message?.content || "";
+    console.log("AI response for niches:", response);
+    
+    // Try to parse as JSON array
+    try {
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const niches = JSON.parse(jsonMatch[0]) as string[];
+        if (Array.isArray(niches) && niches.length > 0) {
+          console.log("Extracted trending niches:", niches.slice(0, 3));
+          return niches.slice(0, 3);
+        }
+      }
+    } catch (parseError) {
+      console.log("JSON parse failed, trying line-by-line parsing");
+    }
+    
+    // Fallback: parse line by line, removing numbering and bullets
+    const niches = response
+      .split("\n")
+      .map((line) => line.replace(/^\d+[\.\)]\s*|^[-•*]\s*|^["']|["']$/g, "").trim())
+      .filter((line) => line.length > 15 && line.length < 100 && !line.startsWith("[") && !line.startsWith("{"))
+      .slice(0, 3);
+
+    console.log("Extracted trending niches (fallback):", niches);
+    return niches;
+  } catch (error: any) {
+    // Log error safely without exposing API keys
+    console.error("Error extracting niches with AI:", error?.message || "Unknown error");
+    return [];
+  }
+}
+
+// Fallback trending niches if API fails
+function getDefaultTrendingNiches(): string[] {
+  return [
+    "Self-improvement habits for busy professionals",
+    "Cozy mystery with small town setting",
+    "Personal finance for millennials"
+  ];
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Trending niches endpoint
+  app.get("/api/trending", async (req, res) => {
+    try {
+      const niches = await fetchTrendingNiches();
+      res.json({ niches });
+    } catch (error: any) {
+      console.error("Trending fetch error:", error);
+      res.json({ niches: getDefaultTrendingNiches() });
+    }
+  });
+
   app.post("/api/validate", async (req, res) => {
     try {
       const { idea } = req.body;

@@ -1,12 +1,36 @@
 import { Link, useLocation } from "wouter";
 import { MobileLayout } from "@/components/MobileLayout";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp } from "lucide-react";
+import { ArrowRight, Search, Sparkles, BookOpen, TrendingUp, Loader2 } from "lucide-react";
 
 export default function Home() {
   const [idea, setIdea] = useState("");
   const [, setLocation] = useLocation();
+  const [trendingNiches, setTrendingNiches] = useState<string[]>([]);
+  const [loadingTrending, setLoadingTrending] = useState(true);
+
+  useEffect(() => {
+    async function fetchTrending() {
+      try {
+        const response = await fetch("/api/trending");
+        const data = await response.json();
+        if (data.niches && Array.isArray(data.niches)) {
+          setTrendingNiches(data.niches);
+        }
+      } catch (error) {
+        console.error("Failed to fetch trending niches:", error);
+        setTrendingNiches([
+          "Self-improvement habits for busy professionals",
+          "Cozy mystery with small town setting",
+          "Personal finance for millennials"
+        ]);
+      } finally {
+        setLoadingTrending(false);
+      }
+    }
+    fetchTrending();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +92,7 @@ export default function Home() {
           </form>
         </motion.div>
 
-        {/* Recent/Trending (Decorative) */}
+        {/* Trending Niches from Amazon Data */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -77,23 +101,31 @@ export default function Home() {
           <div className="flex items-center gap-2 mb-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
             <TrendingUp size={14} />
             <span>Trending Niches</span>
+            {loadingTrending && <Loader2 size={12} className="animate-spin" />}
           </div>
           
-          <div className="space-y-3">
-            {[
-              "Cozy Fantasy with romance",
-              "ADHD organization guide", 
-              "Sourdough baking for beginners"
-            ].map((item, i) => (
-              <div 
-                key={i}
-                onClick={() => setLocation(`/validate?q=${encodeURIComponent(item)}`)}
-                className="p-4 bg-white rounded-2xl border border-border/50 text-foreground/80 font-medium active:bg-gray-50 transition-colors cursor-pointer flex justify-between items-center group"
-              >
-                {item}
-                <ArrowRight size={16} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-primary" />
+          <div className="space-y-3" data-testid="trending-niches-list">
+            {loadingTrending ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="p-4 bg-white rounded-2xl border border-border/50 animate-pulse">
+                    <div className="h-5 bg-gray-200 rounded w-3/4"></div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              trendingNiches.map((item, i) => (
+                <div 
+                  key={i}
+                  data-testid={`trending-niche-${i}`}
+                  onClick={() => setLocation(`/validate?q=${encodeURIComponent(item)}`)}
+                  className="p-4 bg-white rounded-2xl border border-border/50 text-foreground/80 font-medium active:bg-gray-50 transition-colors cursor-pointer flex justify-between items-center group"
+                >
+                  {item}
+                  <ArrowRight size={16} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-primary" />
+                </div>
+              ))
+            )}
           </div>
         </motion.div>
 
