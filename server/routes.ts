@@ -985,6 +985,7 @@ interface DeepAnalysis {
   suggestedCategories: string[];
   bookBlueprint: BookBlueprint;
   titleIdeas: TitleIdea[];
+  nextSteps: string[];
 }
 
 // Generate Deep Analysis using OpenAI with structured JSON output
@@ -1050,7 +1051,8 @@ Provide a comprehensive deep analysis in the following JSON structure. Be specif
   },
   "titleIdeas": [
     {"title": "Main title", "subtitle": "Descriptive subtitle with keywords", "hook": "Why this title works"}
-  ]
+  ],
+  "nextSteps": ["3-5 concrete, actionable next steps for the author based on this analysis. Be specific about what to do, format, length, differentiators, etc. Examples: 'Begin drafting a 32-40 page picture book focused on one core emotional theme', 'Plan a 3-book series covering anger, sadness, and worry', 'Use the interactive activities angle to differentiate from competitors'"]
 }
 
 IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no explanatory text. Start with { and end with }.`;
@@ -1174,6 +1176,13 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
           subtitle: "Transform Your Life One Day at a Time",
           hook: "Time-bound promise with daily structure"
         }
+      ],
+      nextSteps: [
+        `Start by outlining 30 daily entries focused on ${idea}`,
+        "Research the top 3 competing books and identify their gaps",
+        "Draft your unique positioning statement before writing",
+        "Consider a workbook companion to increase reader engagement",
+        "Plan your launch strategy with early reader reviews"
       ]
     };
   }
@@ -1465,6 +1474,7 @@ export async function registerRoutes(
           suggestedCategories: deepAnalysis.suggestedCategories,
           bookBlueprint: deepAnalysis.bookBlueprint,
           titleIdeas: deepAnalysis.titleIdeas,
+          nextSteps: deepAnalysis.nextSteps,
         },
       };
 

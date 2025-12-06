@@ -8,7 +8,8 @@ import {
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
   BarChart3, Users, DollarSign, Book, TrendingUp, 
   Activity, Award, AlertCircle, Layers, FlaskConical,
-  Lightbulb, Target, Tag, FileText, Sparkles, ChevronDown, X
+  Lightbulb, Target, Tag, FileText, Sparkles, ChevronDown, X,
+  ArrowRightCircle
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -740,6 +741,35 @@ export default function Validate() {
                       </div>
                     </div>
                   )}
+                </motion.div>
+              )}
+
+              {/* Next Steps Card */}
+              {data.deepAnalysis.nextSteps && data.deepAnalysis.nextSteps.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.45 }}
+                  className="bg-white rounded-2xl border border-border/50 shadow-sm p-5"
+                  data-testid="card-next-steps"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                      <ArrowRightCircle size={16} />
+                    </div>
+                    <h3 className="font-bold text-foreground">Next Steps</h3>
+                  </div>
+                  
+                  <ol className="space-y-3">
+                    {data.deepAnalysis.nextSteps.map((step, i) => (
+                      <li key={i} className="flex gap-3 text-sm text-foreground/80">
+                        <span className="flex-shrink-0 h-6 w-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                          {i + 1}
+                        </span>
+                        <span className="pt-0.5">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
                 </motion.div>
               )}
             </>

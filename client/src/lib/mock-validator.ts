@@ -45,6 +45,7 @@ export type DeepAnalysis = {
   suggestedCategories?: string[];
   bookBlueprint?: BookBlueprint;
   titleIdeas?: TitleIdea[];
+  nextSteps?: string[];
 };
 
 export type MarketAnalysis = {
