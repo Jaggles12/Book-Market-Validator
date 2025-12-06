@@ -1,0 +1,140 @@
+You are editing my existing Book Market Validator project in Replit.
+
+GOAL
+I want you to dramatically improve the “Book Blueprint” generation so that it produces a clean, structured, and concise blueprint that can be used both by human authors and by a future AI writing engine.
+
+Right now, the blueprint output is too much like a narrative report. It mixes analysis, long paragraphs, and loosely-structured advice. I want you to rewrite the internal OpenAI prompt so that the model returns a STRICT, compact JSON blueprint with well-defined fields.
+
+DO NOT change the UI layout or routing logic. Only update the prompt and the way we parse the LLM response so that:
+
+1) The response is structured exactly as described below.
+2) Each field is short, clear, and usable.
+3) The model returns ONLY JSON, with no extra text.
+
+CONTEXT
+- The app already generates a “Book Blueprint” based on a validation.
+- That generation happens in the backend where we call OpenAI (look for the function or route that creates the blueprint—probably in the /book-blueprints/generate route or equivalent).
+- The model currently receives information like:
+  - nicheInput
+  - verdict, verdictReason, genreCategory
+  - core keywords and whitespace keywords
+  - metrics such as avgRating, avgReviews, priceMin, priceMax, BSR patterns, etc.
+- We already send that data into a prompt and get back some kind of blueprint text.
+
+TASK PART 1 – UPDATE THE OPENAI PROMPT
+
+Find the place where we call OpenAI to generate the Book Blueprint and replace the existing prompt with a new one that does the following:
+
+1. Takes in:
+   - nicheInput
+   - verdict and verdictReason
+   - genreCategory
+   - coreKeywords array
+   - whiteSpaceKeywords array
+   - key metrics (avgRating, avgReviews, priceMin, priceMax, strongCompetitors, etc.)
+   - any competitor or category info we already pass
+
+2. Instructs the model to act like a professional book development editor who is turning MARKET INSIGHTS into a SIMPLE, ACTIONABLE BOOK BLUEPRINT.
+
+3. Demands **strict JSON output only** with the following top-level keys, and nothing else. Use these exact keys and structure:
+
+{
+  "working_title": "",
+  "subtitle": "",
+  "core_promise": "",
+  "ideal_reader": "",
+  "differentiation": "",
+  "format": "",
+  "constraints": {
+    "word_count_target": 0,
+    "reading_level": "",
+    "timeframe": ""
+  },
+  "structure": {
+    "overview": "",
+    "sections": [
+      {
+        "title": "",
+        "description": "",
+        "chapters": [
+          {
+            "title": "",
+            "purpose": "",
+            "notes": ""
+          }
+        ]
+      }
+    ]
+  },
+  "voice_and_style": "",
+  "comparable_titles": "",
+  "positioning_notes": "",
+  "primary_keywords": [],
+  "whitespace_keywords": []
+}
+
+4. Add clear instructions in the prompt for what each field should be like:
+
+- working_title: 1 strong working title, not multiple options.
+- subtitle: 1 concise subtitle that clarifies what the book does and for whom.
+- core_promise: 1 sentence in plain language describing the transformation/result the reader will experience. Example pattern: “This book helps [ideal reader] go from [pain point] to [desired outcome] by [approach].”
+- ideal_reader: 3–5 sentences maximum. Include demographics and psychographics, plus key pain points and desired outcome.
+- differentiation: 2–4 sentences explaining how THIS book stands out from existing books in this niche (based on the market data and whitespace keywords).
+- format: 1–2 sentences describing what kind of book this is (e.g., “30-day interactive devotional with daily readings and reflection prompts,” “short how-to guide with checklists,” “cozy mystery novel with recurring characters,” etc.).
+- constraints.word_count_target: a single integer (like 20000, 30000, 50000) appropriate for the niche and format.
+- constraints.reading_level: short text like “6th–8th grade”, “adult popular nonfiction”, etc.
+- constraints.timeframe: simple phrase like “30 days”, “8 chapters”, “12-week study”, etc., depending on the concept.
+- structure.overview: 2–4 sentences summarizing how the book is organized and how the reader will progress.
+- structure.sections: 3–6 sections max, each with:
+  - title: short and clear section title.
+  - description: 1–3 sentences describing what this section covers.
+  - chapters: 3–8 chapters per section, each with:
+    - title: short chapter title.
+    - purpose: 1–2 sentences describing what this chapter accomplishes for the reader.
+    - notes: bullet-like text (or short paragraph) with specific topics, examples, or elements to include.
+- voice_and_style: 2–4 sentences describing tone, voice, and style preferences (e.g., “warm, pastoral, story-driven,” “no-nonsense, step-by-step,” “playful and whimsical for kids”).
+- comparable_titles: 2–5 short bullet-like lines of “Book x + what we’re doing differently”. If the model doesn’t know exact titles, it can describe types of books and how this one differs.
+- positioning_notes: 2–4 sentences noting where this book sits in the market, how to pitch it, and what role it plays (gift book, workbook, starter guide, deep dive, etc.).
+- primary_keywords: array of strings pulled from coreKeywords and other obvious core niche phrases (10–15 items max).
+- whitespace_keywords: array of strings pulled from whiteSpaceKeywords and any inferred niche gaps (5–15 items max).
+
+5. Include strong instructions to the model to:
+- Be concise and concrete.
+- Avoid fluffy, generic marketing language.
+- Focus on clarity and usability for an author who wants to start writing the book tomorrow.
+- ALWAYS return valid JSON with double quotes around keys and strings, no trailing commas, and no extra commentary, explanations, or text outside the JSON object.
+
+TASK PART 2 – ENSURE WE PARSE THE JSON PROPERLY
+
+After updating the prompt, review the code that handles the OpenAI response:
+
+- Make sure we:
+  - Take the model’s response as a string.
+  - Parse it with JSON.parse inside a try/catch.
+  - If parsing fails, return an error that clearly indicates invalid JSON from the model.
+  - If parsing succeeds, map the snake_case fields into our internal BookBlueprint structure as needed (e.g., working_title → workingTitle, core_promise → corePromise, etc.), or adjust our internal type to use the same names consistently.
+
+- Keep the output stored in the BookBlueprint data structure we already created or are using.
+- Do NOT change the database choice (it should stay in Replit DB).
+- Do NOT change the routes or front-end shape; just make sure the blueprint object now uses this richer, structured schema.
+
+TASK PART 3 – KEEP OUTPUT SHORT & NON-OVERWHELMING
+
+Inside the new prompt instructions, emphasize:
+
+- 1–3 sentences max for most text fields.
+- No long essays.
+- A clear hierarchy so authors can glance at:
+  - who it’s for,
+  - what it promises,
+  - how it’s structured,
+  - how it’s different,
+  - how it should sound,
+  - what keywords it should target.
+
+The goal is that an author sees this blueprint and immediately feels like:
+- “I know exactly what book I’m writing.”
+- “I know my reader, my promise, my structure, and my differentiator.”
+- “I could hand this to a writing engine or a ghostwriter and they would know what to do.”
+
+Implement these changes and keep everything consistent with the current project structure and coding style.

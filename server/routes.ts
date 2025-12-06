@@ -1791,15 +1791,12 @@ export async function registerRoutes(
       const deepAnalysis = analysis.deepAnalysis || {};
       const genre = analysis.genre || {};
 
-      const promptContext = `
-You are a book development strategist helping an author create a focused book blueprint.
+      const promptContext = `You are a professional book development editor. Your job is to transform MARKET INSIGHTS into a SIMPLE, ACTIONABLE BOOK BLUEPRINT that an author can use to start writing immediately.
 
-Here is the market validation data for their book idea:
-
-NICHE INPUT: ${validation.niche}
-VERDICT: ${analysis.verdict || "N/A"} - ${analysis.verdictReason || "N/A"}
-GENRE: ${genre.category || "N/A"} / ${genre.subtype || "N/A"}
-FRIENDLY LABEL: ${analysis.friendlyGenreLabel || "N/A"}
+MARKET VALIDATION DATA:
+- Niche Input: "${validation.niche}"
+- Verdict: ${analysis.verdict || "N/A"} - ${analysis.verdictReason || "N/A"}
+- Genre: ${genre.category || "N/A"} / ${genre.subtype || "N/A"}
 
 MARKET METRICS:
 - Average Rating: ${stats.avgRating || "N/A"}
@@ -1810,69 +1807,125 @@ MARKET METRICS:
 - Low Review Books (<50): ${detailedStats.lowReviewBooks || 0}
 
 KEYWORDS:
-- Core Keywords: ${(deepAnalysis.coreKeywords || []).join(", ") || "N/A"}
-- White Space Keywords: ${(deepAnalysis.whiteSpaceKeywords || []).join(", ") || "N/A"}
+- Core Keywords: ${JSON.stringify(deepAnalysis.coreKeywords || [])}
+- White Space Keywords: ${JSON.stringify(deepAnalysis.whiteSpaceKeywords || [])}
 
 NICHE OPPORTUNITIES: ${(deepAnalysis.nicheOpportunities || []).join("; ") || "N/A"}
 FORMAT GAPS: ${(deepAnalysis.formatGaps || []).join("; ") || "N/A"}
 
-Based on this data, create a book blueprint. Return STRICT JSON with these exact keys (snake_case):
+Create a comprehensive book blueprint. Return STRICT JSON ONLY with this exact structure:
 
 {
-  "working_title": "A compelling working title for the book",
-  "reader_avatar": "One paragraph describing the ideal reader - their situation, struggles, and aspirations",
-  "primary_promise": "One sentence describing the transformation or outcome the reader will achieve",
-  "core_problem": "The main pain, struggle, or challenge this book addresses",
-  "big_differentiator": "What makes this book stand out from competitors in the market",
-  "core_topics": "Comma-separated list of 5-7 key topics the book will cover",
-  "content_shape": "The format/structure (e.g., '30-day devotional', 'step-by-step guide', '12 chapters with exercises')",
-  "target_length_words": 25000,
-  "tone_style": "The voice and style (e.g., 'warm and encouraging', 'no-nonsense tactical', 'conversational with humor')",
-  "comp_titles": "2-3 comparable titles that readers of this book might also enjoy, with brief notes on how yours differs",
-  "positioning_notes": "Strategic notes on how to position this book for success in the market"
+  "working_title": "1 strong working title (not multiple options)",
+  "subtitle": "1 concise subtitle that clarifies what the book does and for whom",
+  "core_promise": "1 sentence: This book helps [ideal reader] go from [pain point] to [desired outcome] by [approach]",
+  "ideal_reader": "3-5 sentences max. Demographics, psychographics, key pain points, and desired outcome",
+  "differentiation": "2-4 sentences explaining how THIS book stands out from existing books based on the market data",
+  "format": "1-2 sentences describing the book type (e.g., '30-day interactive devotional with daily readings and reflection prompts')",
+  "constraints": {
+    "word_count_target": 25000,
+    "reading_level": "6th-8th grade or adult popular nonfiction, etc.",
+    "timeframe": "30 days, 8 chapters, 12-week study, etc."
+  },
+  "structure": {
+    "overview": "2-4 sentences summarizing how the book is organized and how the reader will progress",
+    "sections": [
+      {
+        "title": "Short section title",
+        "description": "1-3 sentences describing what this section covers",
+        "chapters": [
+          {
+            "title": "Short chapter title",
+            "purpose": "1-2 sentences describing what this chapter accomplishes for the reader",
+            "notes": "Bullet-like text with specific topics, examples, or elements to include"
+          }
+        ]
+      }
+    ]
+  },
+  "voice_and_style": "2-4 sentences describing tone, voice, and style (e.g., 'warm, pastoral, story-driven' or 'no-nonsense, step-by-step')",
+  "comparable_titles": "2-5 short bullet-like lines: 'Book X + what we're doing differently'",
+  "positioning_notes": "2-4 sentences noting where this book sits in the market and how to pitch it",
+  "primary_keywords": ["array of 10-15 core niche phrases from coreKeywords"],
+  "whitespace_keywords": ["array of 5-15 underutilized keyword opportunities"]
 }
 
-IMPORTANT:
-- Keep each response SHORT and CLEAR (1-3 sentences for text fields).
-- target_length_words should be a number (integer), not a string.
-- Make core_topics a comma-separated string.
-- Focus on being specific and actionable, not generic.
-- Return ONLY valid JSON, no markdown or extra text.
-`;
+CRITICAL INSTRUCTIONS:
+1. Be CONCISE and CONCRETE. 1-3 sentences max for most text fields.
+2. Avoid fluffy, generic marketing language.
+3. Focus on CLARITY and USABILITY - the author should know exactly what book they're writing.
+4. Structure sections: Include 3-6 sections max, each with 3-8 chapters.
+5. word_count_target must be an integer (like 20000, 30000, 50000) appropriate for the format.
+6. ALWAYS return valid JSON with double quotes around keys and strings.
+7. NO trailing commas, NO markdown formatting, NO extra text outside the JSON object.
+8. Start with { and end with }.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "user", content: promptContext }],
         temperature: 0.7,
-        max_tokens: 1500,
+        max_tokens: 4000,
       });
 
       const responseText = completion.choices[0]?.message?.content?.trim() || "";
       
       let parsed: any;
       try {
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        let cleanedResponse = responseText;
+        if (cleanedResponse.startsWith("```json")) {
+          cleanedResponse = cleanedResponse.slice(7);
+        }
+        if (cleanedResponse.startsWith("```")) {
+          cleanedResponse = cleanedResponse.slice(3);
+        }
+        if (cleanedResponse.endsWith("```")) {
+          cleanedResponse = cleanedResponse.slice(0, -3);
+        }
+        cleanedResponse = cleanedResponse.trim();
+        
+        const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
           throw new Error("No JSON object found in response");
         }
         parsed = JSON.parse(jsonMatch[0]);
       } catch (parseError) {
         console.error("Failed to parse OpenAI response:", responseText);
-        return res.status(500).json({ success: false, error: "Failed to parse AI response" });
+        return res.status(500).json({ success: false, error: "Invalid JSON returned from AI. Please try again." });
+      }
+
+      if (!parsed.working_title || !parsed.structure) {
+        return res.status(500).json({ success: false, error: "AI response missing required fields. Please try again." });
       }
 
       const blueprintData = {
-        workingTitle: parsed.working_title || "",
-        readerAvatar: parsed.reader_avatar || "",
-        primaryPromise: parsed.primary_promise || "",
-        coreProblem: parsed.core_problem || "",
-        bigDifferentiator: parsed.big_differentiator || "",
-        coreTopics: parsed.core_topics || "",
-        contentShape: parsed.content_shape || "",
-        targetLengthWords: typeof parsed.target_length_words === "number" ? parsed.target_length_words : null,
-        toneStyle: parsed.tone_style || "",
-        compTitles: parsed.comp_titles || "",
-        positioningNotes: parsed.positioning_notes || "",
+        working_title: parsed.working_title || "",
+        subtitle: parsed.subtitle || "",
+        core_promise: parsed.core_promise || "",
+        ideal_reader: parsed.ideal_reader || "",
+        differentiation: parsed.differentiation || "",
+        format: parsed.format || "",
+        constraints: {
+          word_count_target: typeof parsed.constraints?.word_count_target === "number" ? parsed.constraints.word_count_target : 25000,
+          reading_level: parsed.constraints?.reading_level || "Adult popular nonfiction",
+          timeframe: parsed.constraints?.timeframe || "8-12 chapters",
+        },
+        structure: {
+          overview: parsed.structure?.overview || "",
+          sections: Array.isArray(parsed.structure?.sections) ? parsed.structure.sections.map((s: any) => ({
+            title: s.title || "",
+            description: s.description || "",
+            chapters: Array.isArray(s.chapters) ? s.chapters.map((c: any) => ({
+              title: c.title || "",
+              purpose: c.purpose || "",
+              notes: c.notes || "",
+            })) : [],
+          })) : [],
+        },
+        voice_and_style: parsed.voice_and_style || "",
+        comparable_titles: parsed.comparable_titles || "",
+        positioning_notes: parsed.positioning_notes || "",
+        primary_keywords: Array.isArray(parsed.primary_keywords) ? parsed.primary_keywords : [],
+        whitespace_keywords: Array.isArray(parsed.whitespace_keywords) ? parsed.whitespace_keywords : [],
       };
 
       const blueprint = await storage.upsertBlueprint(userId, validationId, blueprintData);
@@ -1888,26 +1941,17 @@ IMPORTANT:
   app.post("/api/book-blueprints/save", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.userId!;
-      const { validationId, ...fields } = req.body;
+      const { validationId, blueprintData } = req.body;
 
       if (!validationId || typeof validationId !== "string") {
         return res.status(400).json({ success: false, error: "validationId is required" });
       }
 
-      const allowedFields = [
-        "workingTitle", "readerAvatar", "primaryPromise", "coreProblem",
-        "bigDifferentiator", "coreTopics", "contentShape", "targetLengthWords",
-        "toneStyle", "compTitles", "positioningNotes"
-      ];
-
-      const updateData: Record<string, any> = {};
-      for (const key of allowedFields) {
-        if (fields[key] !== undefined) {
-          updateData[key] = fields[key];
-        }
+      if (!blueprintData || typeof blueprintData !== "object") {
+        return res.status(400).json({ success: false, error: "blueprintData is required" });
       }
 
-      const blueprint = await storage.upsertBlueprint(userId, validationId, updateData);
+      const blueprint = await storage.upsertBlueprint(userId, validationId, blueprintData);
 
       res.json({ success: true, data: blueprint });
     } catch (error: any) {

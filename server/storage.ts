@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type SavedResult, type InsertSavedResult, savedResults, type BookBlueprint, type InsertBookBlueprint, bookBlueprints } from "@shared/schema";
+import { type User, type InsertUser, type SavedResult, type InsertSavedResult, savedResults, type BookBlueprint, type InsertBookBlueprint, bookBlueprints, type BlueprintData } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, desc, and } from "drizzle-orm";
@@ -20,7 +20,7 @@ export interface IStorage {
   deleteResult(id: string, userId: string): Promise<boolean>;
   getBlueprint(userId: string, validationId: string): Promise<BookBlueprint | undefined>;
   saveBlueprint(blueprint: InsertBookBlueprint): Promise<BookBlueprint>;
-  upsertBlueprint(userId: string, validationId: string, data: Partial<InsertBookBlueprint>): Promise<BookBlueprint>;
+  upsertBlueprint(userId: string, validationId: string, blueprintData: BlueprintData): Promise<BookBlueprint>;
 }
 
 export class MemStorage implements IStorage {
@@ -82,13 +82,13 @@ export class MemStorage implements IStorage {
     return saved;
   }
 
-  async upsertBlueprint(userId: string, validationId: string, data: Partial<InsertBookBlueprint>): Promise<BookBlueprint> {
+  async upsertBlueprint(userId: string, validationId: string, blueprintData: BlueprintData): Promise<BookBlueprint> {
     const existing = await this.getBlueprint(userId, validationId);
     
     if (existing) {
       const [updated] = await db.update(bookBlueprints)
         .set({
-          ...data,
+          blueprintJson: blueprintData,
           updatedAt: new Date(),
         })
         .where(and(eq(bookBlueprints.userId, userId), eq(bookBlueprints.validationId, validationId)))
@@ -98,17 +98,7 @@ export class MemStorage implements IStorage {
       const newBlueprint: InsertBookBlueprint = {
         userId,
         validationId,
-        workingTitle: data.workingTitle ?? "",
-        readerAvatar: data.readerAvatar ?? "",
-        primaryPromise: data.primaryPromise ?? "",
-        coreProblem: data.coreProblem ?? "",
-        bigDifferentiator: data.bigDifferentiator ?? "",
-        coreTopics: data.coreTopics ?? "",
-        contentShape: data.contentShape ?? "",
-        targetLengthWords: data.targetLengthWords ?? null,
-        toneStyle: data.toneStyle ?? "",
-        compTitles: data.compTitles ?? "",
-        positioningNotes: data.positioningNotes ?? "",
+        blueprintJson: blueprintData,
       };
       return this.saveBlueprint(newBlueprint);
     }

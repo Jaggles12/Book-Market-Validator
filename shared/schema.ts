@@ -41,17 +41,7 @@ export const bookBlueprints = pgTable("book_blueprints", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: text("user_id").notNull(),
   validationId: text("validation_id").notNull(),
-  workingTitle: text("working_title").notNull().default(""),
-  readerAvatar: text("reader_avatar").notNull().default(""),
-  primaryPromise: text("primary_promise").notNull().default(""),
-  coreProblem: text("core_problem").notNull().default(""),
-  bigDifferentiator: text("big_differentiator").notNull().default(""),
-  coreTopics: text("core_topics").notNull().default(""),
-  contentShape: text("content_shape").notNull().default(""),
-  targetLengthWords: integer("target_length_words"),
-  toneStyle: text("tone_style").notNull().default(""),
-  compTitles: text("comp_titles").notNull().default(""),
-  positioningNotes: text("positioning_notes").notNull().default(""),
+  blueprintJson: jsonb("blueprint_json").notNull().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -66,3 +56,42 @@ export const insertBookBlueprintSchema = createInsertSchema(bookBlueprints).omit
 
 export type InsertBookBlueprint = z.infer<typeof insertBookBlueprintSchema>;
 export type BookBlueprint = typeof bookBlueprints.$inferSelect;
+
+export interface BlueprintChapter {
+  title: string;
+  purpose: string;
+  notes: string;
+}
+
+export interface BlueprintSection {
+  title: string;
+  description: string;
+  chapters: BlueprintChapter[];
+}
+
+export interface BlueprintConstraints {
+  word_count_target: number;
+  reading_level: string;
+  timeframe: string;
+}
+
+export interface BlueprintStructure {
+  overview: string;
+  sections: BlueprintSection[];
+}
+
+export interface BlueprintData {
+  working_title: string;
+  subtitle: string;
+  core_promise: string;
+  ideal_reader: string;
+  differentiation: string;
+  format: string;
+  constraints: BlueprintConstraints;
+  structure: BlueprintStructure;
+  voice_and_style: string;
+  comparable_titles: string;
+  positioning_notes: string;
+  primary_keywords: string[];
+  whitespace_keywords: string[];
+}
