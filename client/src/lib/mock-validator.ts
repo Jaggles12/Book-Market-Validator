@@ -245,19 +245,27 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
       let verdict: "GREEN" | "YELLOW" | "RED" = "YELLOW";
       let verdictReason = "Mixed signals. Some demand and some competition — success depends on a clear angle.";
       let suggestions = [
-        "Focus on a specific sub-niche to reduce competition.",
-        "Ensure your cover design is professional and stands out.",
-        "Consider bundling a workbook or journal."
+        "Decide whether your central conflict is primarily internal (emotional/psychological), external (an antagonist or system), or relational (between key characters).",
+        "Choose the protagonist archetype that best fits your niche—consider what type of character will resonate most with your target readers.",
+        "Determine your book's core transformation: what specific change will readers experience from the opening to the final chapter?"
       ];
 
       if (idea.toLowerCase().includes("unicorn") || idea.toLowerCase().includes("billionaire")) {
         verdict = "GREEN";
         verdictReason = "High demand detected! This niche is currently trending with strong sales velocity across multiple authors.";
-        suggestions = ["Launch quickly to capture the trend.", "Focus on Amazon Ads.", "Write a series."];
+        suggestions = [
+          "Decide on your protagonist's fatal flaw or secret vulnerability that creates tension beneath their glamorous exterior.",
+          "Choose the power dynamic that drives your romance—will it be an enemies-to-lovers arc, a forbidden attraction, or a slow-burn revelation?",
+          "Determine the emotional stakes beyond the relationship: what does your protagonist stand to lose if they choose love?"
+        ];
       } else if (idea.toLowerCase().includes("poetry") || idea.toLowerCase().includes("memoir")) {
         verdict = "RED";
         verdictReason = "This is a very saturated market with low organic discoverability and high author dominance.";
-        suggestions = ["Build an audience on social media first.", "Focus on direct sales.", "Consider a unique angle or hybrid genre."];
+        suggestions = [
+          "Decide on your unifying theme or through-line—the single emotional or thematic thread that ties your pieces together.",
+          "Choose your structural approach: chronological journey, thematic sections, or an unconventional organizing principle.",
+          "Define your unique lens or perspective—what life experience or worldview makes your voice distinct from other voices in this space?"
+        ];
       }
 
       const deepAnalysis: DeepAnalysis = {

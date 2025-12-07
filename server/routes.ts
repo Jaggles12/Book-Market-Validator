@@ -896,26 +896,38 @@ OUTPUT ONLY the niche phrase, nothing else. No quotes, no explanation.`;
   }
 }
 
-// Generate AI Suggestions
+// Generate AI Suggestions - Creative decisions to help author shape their book
 async function generateSuggestions(
   idea: string,
   genre: { category: string; subtype: string },
   stats: any,
   verdict: string
 ): Promise<string[]> {
-  const prompt = `You are a book publishing strategist. A writer wants to write about: "${idea}"
+  const isFiction = genre.category === "fiction";
+  const genreContext = isFiction 
+    ? "This is FICTION. Focus on: protagonist archetype, central conflict type (internal/external/relational), story engine, emotional arc, and stakes."
+    : "This is NONFICTION. Focus on: reader's core problem, unique framework or approach, transformation promise, and structure decisions.";
 
+  const prompt = `You are an editorial strategist helping a writer make the 3 most important CREATIVE DECISIONS for a book in this niche.
+
+Niche/Topic: "${idea}"
 Genre: ${genre.category} - ${genre.subtype}
-Market Verdict: ${verdict}
-Market Stats:
-- Average Reviews: ${stats.avgReviews.toFixed(0)}
-- Strong Competitors: ${stats.strongCompetitors}
-- Price Range: $${stats.priceMin} - $${stats.priceMax}
-- Verdict Reason: ${stats.verdictReason}
+${genreContext}
 
-Give exactly 3 strategic, actionable suggestions for this writer. 
+Write EXACTLY 3 numbered items. Each must be:
+- A concrete creative decision the writer needs to make RIGHT NOW to start shaping their book
+- Specific to THIS niche (not generic writing advice)
+- 1-2 sentences maximum
 
-IMPORTANT: Output ONLY the 3 suggestions as plain numbered list (1. 2. 3.). No headings, no bold text, no markdown formatting, no introductions. Start directly with suggestion 1.`;
+Examples of good specificity:
+- "Decide whether your central conflict is primarily internal (emotional/psychological), external (an antagonist or system), or relational (between key characters), and shape your scenes around that choice."
+- "Choose a protagonist archetype that fits this niche—for example, an everyday professional under pressure, a teenager discovering a secret, or a parent navigating conflicting loyalties."
+- "Determine your book's core transformation: what specific change will readers experience from page one to the final chapter?"
+
+DO NOT give generic advice like "develop strong characters" or "write engaging prose."
+DO NOT give marketing advice about covers, ads, or launches.
+
+Output ONLY the 3 numbered decisions (1. 2. 3.). No headings, no bold, no introductions. Start directly with 1.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -942,16 +954,16 @@ IMPORTANT: Output ONLY the 3 suggestions as plain numbered list (1. 2. 3.). No h
     return suggestions.length > 0
       ? suggestions
       : [
-          "Focus on a specific sub-niche to reduce competition.",
-          "Ensure your cover design is professional.",
-          "Build an email list before launch.",
+          "Decide whether your central conflict is primarily internal (emotional/psychological), external (an antagonist or system), or relational (between key characters).",
+          "Choose the protagonist archetype that best fits your niche—consider what type of character will resonate most with your target readers.",
+          "Determine your book's core transformation: what specific change will readers experience from the opening to the final chapter?",
         ];
   } catch (error) {
     console.error("OpenAI error:", error);
     return [
-      "Research your target audience deeply.",
-      "Study successful books in this niche.",
-      "Create a strong unique value proposition.",
+      "Decide on your book's central question or promise—the one thing readers should walk away understanding or feeling.",
+      "Choose whether your structure will be linear, episodic, or framework-based, and commit to that approach from chapter one.",
+      "Define the specific reader problem you're solving and the unique angle that differentiates your approach from existing books.",
     ];
   }
 }
