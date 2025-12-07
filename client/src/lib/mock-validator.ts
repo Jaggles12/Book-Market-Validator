@@ -42,15 +42,26 @@ export type BlueprintStructure = {
   sections: BlueprintSection[];
 };
 
+export type FiveBeatStructure = {
+  setup: string;
+  disruption: string;
+  risingComplications: string;
+  climax: string;
+  resolution: string;
+};
+
 export type BookBlueprint = {
   working_title: string;
   subtitle: string;
+  logline?: string;
   core_promise: string;
   ideal_reader: string;
   differentiation: string;
   format: string;
   constraints: BlueprintConstraints;
   structure: BlueprintStructure;
+  fiveBeatStructure?: FiveBeatStructure;
+  openingCatalystPrompt?: string;
   voice_and_style: string;
   comparable_titles: string;
   positioning_notes: string;

@@ -998,15 +998,26 @@ interface BlueprintStructure {
   sections: BlueprintSection[];
 }
 
+interface FiveBeatStructure {
+  setup: string;
+  disruption: string;
+  risingComplications: string;
+  climax: string;
+  resolution: string;
+}
+
 interface BookBlueprint {
   working_title: string;
   subtitle: string;
+  logline: string;
   core_promise: string;
   ideal_reader: string;
   differentiation: string;
   format: string;
   constraints: BlueprintConstraints;
   structure: BlueprintStructure;
+  fiveBeatStructure: FiveBeatStructure;
+  openingCatalystPrompt: string;
   voice_and_style: string;
   comparable_titles: string;
   positioning_notes: string;
@@ -1110,6 +1121,7 @@ Provide a comprehensive deep analysis in the following JSON structure. Be specif
   "bookBlueprint": {
     "working_title": "One strong, memorable title",
     "subtitle": "Concise subtitle that clarifies what the book does and for whom",
+    "logline": "ONE sentence: For fiction (character + goal + obstacle + stakes), for nonfiction (reader + problem + unique solution + promised outcome). Genre-appropriate.",
     "core_promise": "One sentence: This book helps [ideal reader] go from [pain point] to [desired outcome] by [approach]",
     "ideal_reader": "3-5 sentences describing demographics, psychographics, key struggles, and desired transformation",
     "differentiation": "2-3 sentences explaining how this book stands out from competitors based on the market data",
@@ -1135,6 +1147,14 @@ Provide a comprehensive deep analysis in the following JSON structure. Be specif
         }
       ]
     },
+    "fiveBeatStructure": {
+      "setup": "1-2 sentences describing what this kind of book does at the Setup/Ordinary World stage, tailored to the niche",
+      "disruption": "1-2 sentences describing what happens at the Disruption/Inciting Problem stage for this niche",
+      "risingComplications": "1-2 sentences describing the Rising Complications/Development stage for this genre",
+      "climax": "1-2 sentences describing the Climax/Breakthrough/Major Turning Point for this niche",
+      "resolution": "1-2 sentences describing the Resolution/Integration/Aftermath for this genre"
+    },
+    "openingCatalystPrompt": "1-2 sentences giving the author a concrete first-scene or first-page assignment appropriate to the genre and niche. Must be specific, immediately actionable, and focused on tone, conflict, or central question.",
     "voice_and_style": "2-3 sentences describing tone, voice, and style",
     "comparable_titles": "2-4 bullet-like lines: 'Similar to Book X but with...'",
     "positioning_notes": "2-3 sentences noting where this book sits in the market",
@@ -1262,6 +1282,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
       bookBlueprint: {
         working_title: `The ${idea.split(' ').slice(0, 3).join(' ')} Blueprint`,
         subtitle: `A Practical Guide for ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Success`,
+        logline: `For readers struggling with ${idea}, this book provides a structured 30-day program that transforms confusion into clarity, giving them the practical tools and daily habits they need to finally achieve lasting success.`,
         core_promise: `This book helps readers who struggle with ${idea} transform their approach through practical, actionable guidance over a structured program.`,
         ideal_reader: `Adults 25-55 seeking personal or professional growth in ${idea}. They are self-motivated learners who value practical solutions over theory. They feel overwhelmed by information and need clear, step-by-step direction.`,
         differentiation: `Unlike other books in this space, this guide combines theory with hands-on exercises, real-world case studies, and a structured daily format that ensures consistent progress.`,
@@ -1300,6 +1321,14 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
             }
           ]
         },
+        fiveBeatStructure: {
+          setup: `Introduce the reader's current struggle with ${idea} and establish why change is needed. Show empathy for where they are now.`,
+          disruption: `Present the inciting insight or framework that challenges their current approach to ${idea}. This is the "aha moment" that makes them want to continue.`,
+          risingComplications: `Guide the reader through progressive challenges and deeper implementation of the ${genre.subtype} concepts. Each chapter builds on the previous.`,
+          climax: `The major breakthrough where readers integrate everything they've learned into a cohesive approach to ${idea}. This is the transformation point.`,
+          resolution: `Solidify lasting change with maintenance strategies, troubleshooting guides, and a clear path forward for continued growth in ${idea}.`
+        },
+        openingCatalystPrompt: `Write 200-300 words describing a moment when your ideal reader realizes their current approach to ${idea} isn't working. Show their frustration, the specific trigger that made them pick up this book, and hint at the hope for change. Use second person ("you") to speak directly to them.`,
         voice_and_style: "Warm, encouraging, and practical. Uses conversational language with clear explanations. Balances inspiration with actionable steps.",
         comparable_titles: `Similar to popular ${genre.category} guides but with more structured daily format and hands-on exercises.`,
         positioning_notes: `Positioned as a practical, accessible entry point for readers new to ${idea}, while offering enough depth for those looking to deepen their practice.`,
