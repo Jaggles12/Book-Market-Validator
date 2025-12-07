@@ -1035,6 +1035,8 @@ interface DeepAnalysis {
   coreKeywords: string[];
   whiteSpaceKeywords: string[];
   suggestedCategories: string[];
+  bestCategoryPath: string;
+  trendingKeywords: string[];
   bookBlueprint: BookBlueprint;
   titleIdeas: TitleIdea[];
   nextSteps: string[];
@@ -1100,9 +1102,11 @@ Provide a comprehensive deep analysis in the following JSON structure. Be specif
   },
   "positioningStatement": "One compelling sentence: For [audience] who [problem], this book provides [solution] unlike [alternatives] because [unique value]",
   "differentiationAngles": ["4-6 specific ways to stand out from competitors"],
-  "coreKeywords": ["8-12 main keywords readers would search for"],
+  "coreKeywords": ["8-12 main searchable keyword phrases readers actually use when looking for this type of book"],
   "whiteSpaceKeywords": ["5-8 underutilized keyword opportunities with less competition"],
   "suggestedCategories": ["3-5 Amazon categories where this book could rank well"],
+  "bestCategoryPath": "One Amazon/BISAC-style category path from broad to specific that best fits this book (e.g., 'Books > Self-Help > Personal Transformation > Habits')",
+  "trendingKeywords": ["3-5 short ad/search phrases currently gaining attention in this niche - realistic terms readers would actually search"],
   "bookBlueprint": {
     "working_title": "One strong, memorable title",
     "subtitle": "Concise subtitle that clarifies what the book does and for whom",
@@ -1246,6 +1250,14 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
         `Books > ${genre.category.charAt(0).toUpperCase() + genre.category.slice(1)}`,
         `Kindle eBooks > ${genre.category.charAt(0).toUpperCase() + genre.category.slice(1)}`,
         "Self-Help > Personal Transformation"
+      ],
+      bestCategoryPath: `Books > ${genre.category.charAt(0).toUpperCase() + genre.category.slice(1)} > ${genre.subtype.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`,
+      trendingKeywords: [
+        `${genre.subtype} 2024`,
+        `best ${genre.subtype} books`,
+        `${genre.subtype} for beginners`,
+        `quick ${genre.subtype} guide`,
+        `${genre.subtype} made simple`
       ],
       bookBlueprint: {
         working_title: `The ${idea.split(' ').slice(0, 3).join(' ')} Blueprint`,

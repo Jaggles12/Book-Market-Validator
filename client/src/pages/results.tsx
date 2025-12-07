@@ -630,7 +630,7 @@ export default function Validate() {
                   )}
                   
                   {data.deepAnalysis.suggestedCategories && data.deepAnalysis.suggestedCategories.length > 0 && (
-                    <div>
+                    <div className="mb-4">
                       <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Suggested Categories</p>
                       <ul className="space-y-1">
                         {data.deepAnalysis.suggestedCategories.map((category, i) => (
@@ -640,6 +640,26 @@ export default function Validate() {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.bestCategoryPath && (
+                    <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-100">
+                      <p className="text-xs font-bold uppercase tracking-wide text-green-700 mb-1">Best Category Path</p>
+                      <p className="text-sm font-medium text-green-900">{data.deepAnalysis.bestCategoryPath}</p>
+                    </div>
+                  )}
+                  
+                  {data.deepAnalysis.trendingKeywords && data.deepAnalysis.trendingKeywords.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Trending/Opportunity Keywords</p>
+                      <div className="flex flex-wrap gap-2">
+                        {data.deepAnalysis.trendingKeywords.map((keyword, i) => (
+                          <span key={i} className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-full border border-purple-200">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </motion.div>

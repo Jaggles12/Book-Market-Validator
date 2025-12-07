@@ -79,6 +79,8 @@ export type DeepAnalysis = {
   coreKeywords?: string[];
   whiteSpaceKeywords?: string[];
   suggestedCategories?: string[];
+  bestCategoryPath?: string;
+  trendingKeywords?: string[];
   bookBlueprint?: BookBlueprint;
   titleIdeas?: TitleIdea[];
   nextSteps?: string[];
@@ -339,6 +341,14 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
           `Books > ${genre.category === 'fiction' ? 'Genre Fiction' : 'Personal Transformation'}`,
           `Kindle eBooks > ${genre.category === 'fiction' ? 'Fiction' : 'Health, Fitness & Dieting'}`,
           `Books > Reference > Journals & Workbooks`,
+        ],
+        bestCategoryPath: `Books > ${genre.category === 'fiction' ? 'Literature & Fiction' : 'Self-Help'} > ${genre.subtype.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`,
+        trendingKeywords: [
+          `${genre.subtype} 2024`,
+          `best ${genre.subtype} books`,
+          `${genre.subtype} for beginners`,
+          `quick ${genre.subtype} guide`,
+          `${genre.subtype} made simple`
         ],
         bookBlueprint: {
           working_title: `The 30-Day ${genre.subtype.charAt(0).toUpperCase() + genre.subtype.slice(1)} Blueprint`,
