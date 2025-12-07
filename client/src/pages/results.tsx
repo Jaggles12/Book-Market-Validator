@@ -450,7 +450,7 @@ export default function Validate() {
           {data.deepAnalysis && (
             <>
               {/* Niche Opportunities Card */}
-              {((data.deepAnalysis.nicheOpportunities && data.deepAnalysis.nicheOpportunities.length > 0) || 
+              {((data.deepAnalysis.nicheOpportunities && data.deepAnalysis.nicheOpportunities.items && data.deepAnalysis.nicheOpportunities.items.length > 0) || 
                 (data.deepAnalysis.formatGaps && data.deepAnalysis.formatGaps.length > 0)) && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -466,11 +466,13 @@ export default function Validate() {
                     <h3 className="font-bold text-foreground">Niche Opportunities</h3>
                   </div>
                   
-                  {data.deepAnalysis.nicheOpportunities && data.deepAnalysis.nicheOpportunities.length > 0 && (
+                  {data.deepAnalysis.nicheOpportunities && data.deepAnalysis.nicheOpportunities.items && data.deepAnalysis.nicheOpportunities.items.length > 0 && (
                     <div className="mb-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Underserved Audiences</p>
+                      {data.deepAnalysis.nicheOpportunities.intro && (
+                        <p className="text-sm text-foreground/80 mb-3">{data.deepAnalysis.nicheOpportunities.intro}</p>
+                      )}
                       <ul className="space-y-2">
-                        {data.deepAnalysis.nicheOpportunities.map((opportunity, i) => (
+                        {data.deepAnalysis.nicheOpportunities.items.map((opportunity, i) => (
                           <li key={i} className="flex gap-2 text-sm text-foreground/80">
                             <span className="text-purple-500 mt-1">•</span>
                             <span>{opportunity}</span>

@@ -58,8 +58,13 @@ export type BookBlueprint = {
   whitespace_keywords: string[];
 };
 
+export type NicheOpportunities = {
+  intro: string;
+  items: string[];
+};
+
 export type DeepAnalysis = {
-  nicheOpportunities?: string[];
+  nicheOpportunities?: NicheOpportunities;
   formatGaps?: string[];
   idealReader?: {
     demographics?: string;
@@ -269,12 +274,16 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
       }
 
       const deepAnalysis: DeepAnalysis = {
-        nicheOpportunities: [
-          `${genre.subtype} readers who want quick, actionable content`,
-          `Busy professionals seeking ${genre.category} guidance in bite-sized format`,
-          `First-time authors in the ${genre.subtype} space looking for frameworks`,
-          `Parents seeking ${genre.category} content for family application`,
-        ],
+        nicheOpportunities: {
+          intro: `This ${genre.subtype} niche has several underexplored angles that could help a new book stand out from competitors.`,
+          items: [
+            `Stories centering ${genre.subtype} protagonists who face unconventional challenges or come from underrepresented backgrounds.`,
+            `Settings that blend ${genre.category} tropes with fresh, contemporary environments readers haven't seen before.`,
+            `Hybrid-genre approaches combining ${genre.subtype} with adjacent genres for crossover appeal and broader reach.`,
+            `Specific audience segments (busy professionals, new parents, career changers) hungry for ${genre.subtype} content tailored to their situation.`,
+            `Emotional territories—vulnerability, ambition, belonging—that competitors have only touched on superficially.`
+          ]
+        },
         formatGaps: [
           "30-day structured programs are underrepresented",
           "Interactive workbook companions are lacking",

@@ -1014,8 +1014,13 @@ interface BookBlueprint {
   whitespace_keywords: string[];
 }
 
+interface NicheOpportunities {
+  intro: string;
+  items: string[];
+}
+
 interface DeepAnalysis {
-  nicheOpportunities: string[];
+  nicheOpportunities: NicheOpportunities;
   formatGaps: string[];
   idealReader: {
     demographics: string;
@@ -1072,7 +1077,16 @@ ${JSON.stringify(topBooksContext, null, 2)}
 Provide a comprehensive deep analysis in the following JSON structure. Be specific, actionable, and data-driven:
 
 {
-  "nicheOpportunities": ["3-5 specific underserved audiences or angles not well covered by existing books"],
+  "nicheOpportunities": {
+    "intro": "One sentence summarizing the most promising creative opportunities in this specific niche.",
+    "items": [
+      "Character archetype or relationship dynamic that is underused but appealing—phrase plus clarifying clause",
+      "Worldbuilding or setting angle that offers fresh territory—phrase plus clarifying clause", 
+      "Hybrid-genre combination or format twist that could stand out—phrase plus clarifying clause",
+      "Specific underserved audience slice hungry for this content—phrase plus clarifying clause",
+      "Emotional or thematic territory competitors haven't fully explored—phrase plus clarifying clause"
+    ]
+  },
   "formatGaps": ["2-4 format opportunities like devotionals, workbooks, audio companions, series, etc."],
   "idealReader": {
     "demographics": "Age range, gender distribution, life stage, profession",
@@ -1177,11 +1191,16 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
     
     // Return a structured fallback response
     return {
-      nicheOpportunities: [
-        "Target a specific demographic underserved by current offerings",
-        "Focus on practical, actionable content over theory",
-        "Address a timely topic or current trend in this space"
-      ],
+      nicheOpportunities: {
+        intro: `This ${genre.subtype} niche offers several underexplored angles that could help a new book stand out.`,
+        items: [
+          "Stories centering underrepresented protagonist types who bring fresh perspectives to this genre.",
+          "Settings or worldbuilding angles that haven't been fully explored by current bestsellers.",
+          "Hybrid-genre combinations that blend this niche with adjacent genres for crossover appeal.",
+          "Specific audience segments (age groups, professions, life stages) hungry for tailored content.",
+          "Emotional or thematic territories that competitors have only touched on superficially."
+        ]
+      },
       formatGaps: [
         "Interactive workbook with exercises",
         "Audio companion or narrated version",
@@ -1756,7 +1775,8 @@ export async function registerRoutes(
         const idealReader = deepAnalysis.idealReader || {};
         const genre = analysis.genre || {};
         const suggestedCategories = deepAnalysis.suggestedCategories || [];
-        const nicheOpportunities = deepAnalysis.nicheOpportunities || [];
+        const nicheOpportunitiesData = deepAnalysis.nicheOpportunities || {};
+        const nicheOpportunityItems = nicheOpportunitiesData.items || [];
         const formatGaps = deepAnalysis.formatGaps || [];
         const painPoints = idealReader.painPoints || [];
         const titleIdeas = deepAnalysis.titleIdeas || [];
@@ -1795,8 +1815,8 @@ export async function registerRoutes(
           category1: suggestedCategories[0] || "",
           category2: suggestedCategories[1] || "",
           category3: suggestedCategories[2] || "",
-          nicheOpportunity1: nicheOpportunities[0] || "",
-          nicheOpportunity2: nicheOpportunities[1] || "",
+          nicheOpportunity1: nicheOpportunityItems[0] || "",
+          nicheOpportunity2: nicheOpportunityItems[1] || "",
           formatGap1: formatGaps[0] || "",
           formatGap2: formatGaps[1] || "",
           idealReaderDemographics: idealReader.demographics || "",
@@ -1916,7 +1936,7 @@ KEYWORDS:
 - Core Keywords: ${JSON.stringify(deepAnalysis.coreKeywords || [])}
 - White Space Keywords: ${JSON.stringify(deepAnalysis.whiteSpaceKeywords || [])}
 
-NICHE OPPORTUNITIES: ${(deepAnalysis.nicheOpportunities || []).join("; ") || "N/A"}
+NICHE OPPORTUNITIES: ${(deepAnalysis.nicheOpportunities?.items || []).join("; ") || "N/A"}
 FORMAT GAPS: ${(deepAnalysis.formatGaps || []).join("; ") || "N/A"}
 
 Create a comprehensive book blueprint. Return STRICT JSON ONLY with this exact structure:
