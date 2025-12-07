@@ -544,6 +544,18 @@ export default function Validate() {
                           {data.deepAnalysis.idealReader.desiredOutcome && (
                             <p><span className="font-medium">Desired Outcome:</span> {data.deepAnalysis.idealReader.desiredOutcome}</p>
                           )}
+                          {data.deepAnalysis.idealReader.emotionalTrigger && (
+                            <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                              <p className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-1">Emotional Trigger</p>
+                              <p className="text-sm text-amber-900">{data.deepAnalysis.idealReader.emotionalTrigger}</p>
+                            </div>
+                          )}
+                          {data.deepAnalysis.idealReader.emotionalPayoff && (
+                            <div className="mt-2 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 mb-1">Emotional Payoff</p>
+                              <p className="text-sm text-emerald-900">{data.deepAnalysis.idealReader.emotionalPayoff}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -1027,6 +1027,8 @@ interface DeepAnalysis {
     psychographics: string;
     painPoints: string[];
     desiredOutcome: string;
+    emotionalTrigger: string;
+    emotionalPayoff: string;
   };
   positioningStatement: string;
   differentiationAngles: string[];
@@ -1092,7 +1094,9 @@ Provide a comprehensive deep analysis in the following JSON structure. Be specif
     "demographics": "Age range, gender distribution, life stage, profession",
     "psychographics": "Values, beliefs, lifestyle, interests",
     "painPoints": ["3-4 specific problems they're trying to solve"],
-    "desiredOutcome": "What transformation do they seek?"
+    "desiredOutcome": "What transformation do they seek?",
+    "emotionalTrigger": "1-2 sentences: The core desire, fear, curiosity, or longing drawing this reader to this kind of book. Be specific to the niche and genre.",
+    "emotionalPayoff": "1-2 sentences: What satisfying feeling this book should deliver by the end (e.g., hope, justice, wonder, connection, understanding, conviction). Tie it tightly to the genre."
   },
   "positioningStatement": "One compelling sentence: For [audience] who [problem], this book provides [solution] unlike [alternatives] because [unique value]",
   "differentiationAngles": ["4-6 specific ways to stand out from competitors"],
@@ -1214,7 +1218,9 @@ IMPORTANT: Return ONLY valid JSON. No markdown formatting, no code blocks, no ex
           "Seeking actionable steps rather than theory",
           "Looking for a trusted guide in this topic"
         ],
-        desiredOutcome: "Achieve measurable improvement and confidence in this area"
+        desiredOutcome: "Achieve measurable improvement and confidence in this area",
+        emotionalTrigger: `Readers are drawn to this book because they feel stuck or frustrated with their current approach to ${genre.subtype} and crave a clear, proven path forward.`,
+        emotionalPayoff: `By the final page, readers should feel empowered, confident, and equipped with a concrete plan they can immediately put into action.`
       },
       positioningStatement: `For readers seeking ${idea}, this book provides practical, actionable guidance that goes beyond theory to deliver real results.`,
       differentiationAngles: [

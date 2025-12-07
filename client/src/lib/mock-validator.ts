@@ -71,6 +71,8 @@ export type DeepAnalysis = {
     psychographics?: string;
     painPoints?: string[];
     desiredOutcome?: string;
+    emotionalTrigger?: string;
+    emotionalPayoff?: string;
   } | string;
   positioningStatement?: string;
   differentiationAngles?: string[];
@@ -300,6 +302,8 @@ export async function validateBookIdea(idea: string): Promise<MarketAnalysis> {
             "Needs accountability and measurable progress",
           ],
           desiredOutcome: "Clear transformation with tangible daily habits and visible progress markers",
+          emotionalTrigger: `Readers pick up this book because they feel stuck or frustrated with their current approach to ${genre.subtype} and desperately want a clear, proven path forward.`,
+          emotionalPayoff: `By the final page, readers should feel empowered, confident, and equipped with a concrete action plan they can immediately put into practice.`
         },
         positioningStatement: `The only ${genre.subtype} book that combines practical daily exercises with proven frameworks for lasting change.`,
         differentiationAngles: [
