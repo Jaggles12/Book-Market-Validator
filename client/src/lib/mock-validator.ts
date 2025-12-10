@@ -127,8 +127,8 @@ export type MarketAnalysis = {
     };
     dominantAuthors: { name: string; count: number }[];
     evergreenSignal: boolean;
-    cheapBookShare: number;
-    premiumBookShare: number;
+    cheapBookShare: number | null;
+    premiumBookShare: number | null;
   };
   books: Book[];
   suggestions: string[];

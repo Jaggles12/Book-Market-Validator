@@ -2126,8 +2126,8 @@ interface BucketStats {
   };
   dominantAuthors: { name: string; count: number }[];
   evergreenSignal: boolean;
-  cheapBookShare: number;
-  premiumBookShare: number;
+  cheapBookShare: number | null;   // null when insufficient price data (< 3 books)
+  premiumBookShare: number | null; // null when insufficient price data (< 3 books)
 }
 
 function computeBucketStats(books: NormalizedBook[]): BucketStats {
@@ -2185,10 +2185,13 @@ function computeBucketStats(books: NormalizedBook[]): BucketStats {
   let priceMin: number | null = null;
   let priceMax: number | null = null;
   let priceMedian: number | null = null;
-  let cheapBookShare = 0;
-  let premiumBookShare = 0;
+  let cheapBookShare: number | null = null;
+  let premiumBookShare: number | null = null;
 
-  if (pricesRaw.length > 0) {
+  // Require minimum 3 books with price data for reliable price statistics
+  // Otherwise, a single data point could mislead pricing decisions
+  const MIN_PRICE_SAMPLE = 3;
+  if (pricesRaw.length >= MIN_PRICE_SAMPLE) {
     const sorted = [...pricesRaw].sort((a, b) => a - b);
     priceMin = sorted[0];
     priceMax = sorted[sorted.length - 1];
@@ -2196,6 +2199,7 @@ function computeBucketStats(books: NormalizedBook[]): BucketStats {
     cheapBookShare = pricesRaw.filter((p) => p <= 2.99).length / pricesRaw.length;
     premiumBookShare = pricesRaw.filter((p) => p >= 15).length / pricesRaw.length;
   }
+  // Note: When pricesRaw.length < MIN_PRICE_SAMPLE, all price stats remain null
 
   const strongCompetitors = books.filter((b) => (b.reviews ?? 0) >= 1000 && (b.rating ?? 0) >= 4.3).length;
   const midCompetitors = books.filter((b) => (b.reviews ?? 0) >= 100 && (b.reviews ?? 0) < 1000 && (b.rating ?? 0) >= 4.0).length;
@@ -2214,7 +2218,17 @@ function computeBucketStats(books: NormalizedBook[]): BucketStats {
   const currentYear = new Date().getFullYear();
   const recentCount = pubYears.filter((y) => y >= currentYear - 1).length;
   const oldCount = pubYears.filter((y) => y <= currentYear - 5).length;
-  const evergreenSignal = recentCount > 0 && oldCount > 0;
+  
+  // Improved evergreen detection:
+  // 1. Classic signal: both recent AND old books exist (market has staying power + new entrants)
+  // 2. NEW: High-review older books (1000+ reviews, 2+ years old) = proven evergreen title
+  const classicEvergreen = recentCount > 0 && oldCount > 0;
+  const highReviewOlderBooks = books.filter((b) => {
+    const reviews = b.reviews ?? 0;
+    const pubYear = b.publicationDate ? new Date(b.publicationDate).getFullYear() : null;
+    return reviews >= 1000 && pubYear !== null && pubYear <= currentYear - 2;
+  }).length;
+  const evergreenSignal = classicEvergreen || highReviewOlderBooks > 0;
 
   return {
     totalBooks: books.length,
@@ -2413,10 +2427,13 @@ function computeMarketSnapshot(
   let priceMin: number | null = null;
   let priceMax: number | null = null;
   let priceMedian: number | null = null;
-  let cheapBookShare = 0;
-  let premiumBookShare = 0;
+  let cheapBookShare: number | null = null;
+  let premiumBookShare: number | null = null;
 
-  if (pricesRaw.length > 0) {
+  // Require minimum 3 books with price data for reliable price statistics
+  // Otherwise, a single data point could mislead pricing decisions
+  const MIN_PRICE_SAMPLE = 3;
+  if (pricesRaw.length >= MIN_PRICE_SAMPLE) {
     const sorted = [...pricesRaw].sort((a, b) => a - b);
     priceMin = sorted[0];
     priceMax = sorted[sorted.length - 1];
@@ -2427,6 +2444,7 @@ function computeMarketSnapshot(
     premiumBookShare =
       pricesRaw.filter((p) => p >= 15).length / pricesRaw.length;
   }
+  // Note: When pricesRaw.length < MIN_PRICE_SAMPLE, all price stats remain null
 
   const strongCompetitors = books.filter(
     (b) => (b.reviews ?? 0) >= 1000 && (b.rating ?? 0) >= 4.3
@@ -2460,7 +2478,18 @@ function computeMarketSnapshot(
   const currentYear = new Date().getFullYear();
   const recentCount = pubYears.filter((y) => y >= currentYear - 1).length;
   const oldCount = pubYears.filter((y) => y <= currentYear - 5).length;
-  const evergreenSignal = recentCount > 0 && oldCount > 0;
+  
+  // Improved evergreen detection:
+  // 1. Classic signal: both recent AND old books exist (market has staying power + new entrants)
+  // 2. NEW: High-review older books (1000+ reviews, 2+ years old) = proven evergreen title
+  const classicEvergreen = recentCount > 0 && oldCount > 0;
+  const highReviewOlderBooks = books.filter((b) => {
+    const reviews = b.reviews ?? 0;
+    if (!b.publicationDate) return false;
+    const pubYear = new Date(b.publicationDate).getFullYear();
+    return reviews >= 1000 && !isNaN(pubYear) && pubYear <= currentYear - 2;
+  }).length;
+  const evergreenSignal = classicEvergreen || highReviewOlderBooks > 0;
 
   let competitionLevel: "HIGH" | "MEDIUM" | "LOW";
   if (strongCompetitors > 5) {
