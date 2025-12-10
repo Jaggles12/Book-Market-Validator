@@ -1,0 +1,147 @@
+INSTRUCTIONS FOR REPLIT: FIX VALIDATION PIPELINE (GENRE-AGNOSTIC)
+Goal
+
+Refactor the validation pipeline so that:
+
+We always try to produce ~5 relevant comparable books (core + adjacent) when Amazon has them.
+
+We enrich ranks for the most relevant books, not just the top search positions.
+
+We fall back to more general keywords when the initial search is too narrow.
+
+All logic is genre-agnostic (works for fiction and nonfiction).
+
+1) Change the ORDER of operations after Rainforest search
+
+Current pattern (problematic):
+
+Rainforest search → pick top N by position → enrich BSR → semantic scoring → relevance filtering → stats.
+
+Required new pattern:
+
+After fetchAmazonBooks(searchTerm) returns books, immediately:
+
+Call the semantic scoring function (e.g. scoreBooksForNiche(...)) on all returned books.
+
+Attach semanticScore / finalRelevanceScore and a relevanceBucket field (core / adjacent / out_of_niche) to each book.
+
+Sort the books by descending finalRelevanceScore.
+
+Only then:
+
+Select the top N relevance-sorted books (e.g. N = 15–20) for BSR/product enrichment, not the first N by search position.
+
+After enrichment completes:
+
+Recompute rank / effectiveRank using any available rank signals on these enriched books.
+
+Keep the original relevanceBucket and finalRelevanceScore for later stats.
+
+Implementation hint: wherever we currently pick topBooks for enrichment based on position, switch to picking topBooks based on finalRelevanceScore.
+
+2) Make relevance thresholds dynamic with a minimum usable sample
+
+Current pattern (problematic):
+
+Fixed thresholds (e.g. semanticScore >= X) and hard caps cause coreBooks and adjacentBooks to shrink to 0–2 even when Amazon returns many okay-but-not-perfect matches.
+
+New requirement: dynamic thresholds + minimum comps
+
+Define constants (at top of file or config):
+
+const MIN_CORE_BOOKS = 3;
+const MIN_TOTAL_FOR_STATS = 5; // core + adjacent
+const MAX_CANDIDATES_FOR_STATS = 20;
+
+
+After semantic scoring and enrichment:
+
+Start with a strict threshold for “core” (e.g. coreThresholdHigh).
+
+Select coreBooks = books.filter(b => b.finalRelevanceScore >= coreThresholdHigh && hasUsableRankOrEnrichment(b)).
+
+If coreBooks.length < MIN_CORE_BOOKS and there are more relevance-scored candidates available:
+
+Gradually relax the threshold downwards (e.g. step down in small increments) until:
+
+coreBooks.length >= MIN_CORE_BOOKS, or
+
+No lower threshold is left.
+
+For “adjacent” books:
+
+Take the next best relevance-scored books below the “core” threshold, still requiring they are at least somewhat relevant (e.g. a lower bound).
+
+Add them until coreBooks.length + adjacentBooks.length >= MIN_TOTAL_FOR_STATS or you run out of candidates.
+
+Limit stats computation to at most MAX_CANDIDATES_FOR_STATS best books (by relevance).
+
+Key: Never treat totalBooks = 0 for the stats layer if you still have relevance-scored, enriched books with usable rank signals. Only use zero stats when Amazon truly returned nothing usable.
+
+3) Implement a generic keyword fallback mechanism
+
+Do not hardcode niche-specific fallbacks. Use a generic normalization + fallback design.
+
+Update the niche/keyword normalizer (where you already output something like canonicalGenre and primarySearch) to return this structure:
+
+{
+  canonicalGenre: string | null;      // e.g. "Thriller", "Self-Help"
+  primarySearch: string;              // main Amazon search phrase
+  fallbackSearches: string[];         // 1–3 more general variants of the same idea
+  keywordTokens: string[];            // tokens used for semantic boosting
+}
+
+
+In the validation route, wrap the Rainforest call + stats pipeline in a loop:
+
+Try primarySearch.
+
+If Rainforest returns some books but the final stats have:
+
+coreStats.totalBooks + adjacentStats.totalBooks < MIN_TOTAL_FOR_STATS
+and
+
+marketSignal.totalBookCount < MIN_TOTAL_FOR_STATS
+
+Then:
+
+Move to the next term in fallbackSearches and rerun the entire pipeline.
+
+Stop as soon as you get a dataset that meets the minimum or you run out of fallback terms.
+
+This fallback mechanism must be generic:
+
+The normalizer decides how to “widen” the query.
+
+The validation logic only checks: “Do I have enough relevant, ranked comps? If not, try the next broader term.”
+
+4) Treat missing ratings/reviews as “unknown,” not “zero”
+
+When aggregating stats (avgRating, avgReviews, etc.):
+
+Only average non-null values.
+
+Keep track of how many books contributed actual numeric values.
+
+Do not overwrite avgRating or avgReviews with 0 when all values are missing. Use null instead and make sure the frontend can display “—” or “Not enough data.”
+
+A book is still a valid comp if it has:
+
+A usable rank / effectiveRank, and
+
+A decent relevance score,
+even if rating/reviews are missing.
+
+5) Sales leaders & verdicts must operate on the same set
+
+When computing sales leaders:
+
+Use the same core + adjacent books that passed relevance and enrichment.
+
+Sort by rank ascending and pick the top 5.
+
+When computing verdicts:
+
+Use the stats from that same pool.
+
+Never compute verdicts off a pool that has totalBooks < MIN_TOTAL_FOR_STATS unless you explicitly downgrade the confidence and say so in the message.
