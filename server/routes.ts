@@ -12,6 +12,14 @@ import { inferGenreFromBooks, generateFriendlyGenreLabelFromInferred } from "./g
 
 
 // -----------------------------
+// Pipeline Configuration Constants
+// -----------------------------
+const MIN_CORE_BOOKS = 3;        // Minimum books in core bucket for reliable stats
+const MIN_TOTAL_FOR_STATS = 5;   // Minimum core + adjacent for stats computation
+const MAX_CANDIDATES_FOR_STATS = 20; // Maximum books to consider for stats
+const MAX_BOOKS_TO_ENRICH = 15;  // Maximum books to enrich with product lookups
+
+// -----------------------------
 // External clients
 // -----------------------------
 
@@ -1312,6 +1320,144 @@ function applyEnrichmentToBooks(
       isEnriched: true,
     };
   });
+}
+
+/**
+ * Check if a book has usable rank data for stats computation
+ */
+function hasUsableRank(book: NormalizedBook): boolean {
+  const rank = book.effectiveRank ?? book.rank ?? book.rawRank;
+  return typeof rank === "number" && rank > 0 && rank < 900_000;
+}
+
+/**
+ * Dynamic bucket assignment with relaxing thresholds.
+ * Ensures we get at least MIN_CORE_BOOKS and MIN_TOTAL_FOR_STATS when possible.
+ * 
+ * Strategy:
+ * 1. Start with strict thresholds (0.70 for core, 0.50 for adjacent)
+ * 2. If we don't meet minimums, relax thresholds in steps
+ * 3. Only include books with usable rank data or decent relevance scores
+ */
+interface DynamicBucketResult {
+  coreBooks: NormalizedBook[];
+  adjacentBooks: NormalizedBook[];
+  outOfNicheBooks: NormalizedBook[];
+  thresholdsUsed: {
+    coreThreshold: number;
+    adjacentThreshold: number;
+    wasRelaxed: boolean;
+  };
+}
+
+function assignBooksWithDynamicThresholds(
+  scoredBooks: NormalizedBook[],
+  minCore: number = MIN_CORE_BOOKS,
+  minTotal: number = MIN_TOTAL_FOR_STATS
+): DynamicBucketResult {
+  // Sort books by finalRelevanceScore descending
+  const sortedBooks = [...scoredBooks].sort((a, b) => {
+    const scoreA = (a as any).finalRelevanceScore ?? a.semanticScore ?? 0;
+    const scoreB = (b as any).finalRelevanceScore ?? b.semanticScore ?? 0;
+    return scoreB - scoreA;
+  });
+
+  // Initial thresholds
+  let coreThreshold = 0.70;
+  let adjacentThreshold = 0.50;
+  const relaxStep = 0.05;
+  const minThreshold = 0.15; // Absolute minimum to be considered relevant
+  let wasRelaxed = false;
+
+  // Helper to assign buckets with given thresholds
+  const assignWithThresholds = (coreT: number, adjT: number) => {
+    const core: NormalizedBook[] = [];
+    const adjacent: NormalizedBook[] = [];
+    const out: NormalizedBook[] = [];
+
+    for (const book of sortedBooks) {
+      const score = (book as any).finalRelevanceScore ?? book.semanticScore ?? 0;
+      
+      if (score >= coreT) {
+        core.push({ ...book, relevanceBucket: "core" as any });
+      } else if (score >= adjT) {
+        adjacent.push({ ...book, relevanceBucket: "adjacent" as any });
+      } else {
+        out.push({ ...book, relevanceBucket: "out_of_niche" as any });
+      }
+    }
+
+    return { core, adjacent, out };
+  };
+
+  // First pass with strict thresholds
+  let { core, adjacent, out } = assignWithThresholds(coreThreshold, adjacentThreshold);
+
+  // Relax thresholds if we don't meet minimums
+  while (
+    (core.length < minCore || core.length + adjacent.length < minTotal) &&
+    adjacentThreshold > minThreshold
+  ) {
+    wasRelaxed = true;
+    
+    // Relax adjacent threshold first
+    if (core.length + adjacent.length < minTotal && adjacentThreshold > minThreshold) {
+      adjacentThreshold = Math.max(minThreshold, adjacentThreshold - relaxStep);
+    }
+    
+    // Then relax core threshold if needed
+    if (core.length < minCore && coreThreshold > adjacentThreshold + relaxStep) {
+      coreThreshold = Math.max(adjacentThreshold + relaxStep, coreThreshold - relaxStep);
+    }
+
+    // Re-assign with new thresholds
+    ({ core, adjacent, out } = assignWithThresholds(coreThreshold, adjacentThreshold));
+  }
+
+  // Final fallback: if still not enough, use top N regardless of score
+  if (core.length === 0 && sortedBooks.length > 0) {
+    const fallbackCount = Math.min(minCore, sortedBooks.length);
+    core = sortedBooks.slice(0, fallbackCount).map(b => ({
+      ...b,
+      relevanceBucket: "core" as any,
+    }));
+    
+    const remainingForAdjacent = Math.min(minTotal - core.length, sortedBooks.length - core.length);
+    if (remainingForAdjacent > 0) {
+      adjacent = sortedBooks.slice(core.length, core.length + remainingForAdjacent).map(b => ({
+        ...b,
+        relevanceBucket: "adjacent" as any,
+      }));
+    }
+    
+    out = sortedBooks.slice(core.length + adjacent.length).map(b => ({
+      ...b,
+      relevanceBucket: "out_of_niche" as any,
+    }));
+    
+    wasRelaxed = true;
+  }
+
+  console.log("=== DYNAMIC THRESHOLD ASSIGNMENT ===");
+  console.log({
+    coreThreshold: coreThreshold.toFixed(2),
+    adjacentThreshold: adjacentThreshold.toFixed(2),
+    wasRelaxed,
+    coreCount: core.length,
+    adjacentCount: adjacent.length,
+    outOfNicheCount: out.length,
+  });
+
+  return {
+    coreBooks: core,
+    adjacentBooks: adjacent,
+    outOfNicheBooks: out,
+    thresholdsUsed: {
+      coreThreshold,
+      adjacentThreshold,
+      wasRelaxed,
+    },
+  };
 }
 
 // Force Amazon search into the Books index via URL
@@ -3090,7 +3236,7 @@ export async function registerRoutes(
           });
         }
 
-        // Step 2: Relevance filtering (new hybrid scoring with buckets)
+        // Step 2: Semantic scoring on ALL books (before enrichment!)
         const booksForRelevance: BookForRelevance[] = books.map((b) => ({
           title: b.title,
           categories: b.rawCategories ?? [],
@@ -3102,64 +3248,141 @@ export async function registerRoutes(
           booksForRelevance,
           {
             boostKeywords: normalizedTerms.keywordTokens,
-            useAdaptiveThresholds: true,
+            useAdaptiveThresholds: false, // We'll use our own dynamic thresholds
           }
         );
 
-        // Attach relevance scores and buckets to books
-        const scoredBooks = books.map((b, idx) => ({
+        // Attach relevance scores to books (bucket assigned later with dynamic thresholds)
+        const scoredBooks: NormalizedBook[] = books.map((b, idx) => ({
           ...b,
           semanticScore: relevance[idx]?.semanticScore ?? 0,
           finalRelevanceScore: relevance[idx]?.finalScore ?? 0,
-          relevanceBucket: relevance[idx]?.bucket ?? "out_of_niche",
         }));
 
-        // Separate into buckets
-        const coreBooks = scoredBooks.filter((_, idx) => relevance[idx]?.bucket === "core");
-        const adjacentBooks = scoredBooks.filter((_, idx) => relevance[idx]?.bucket === "adjacent");
-        const outOfNicheBooks = scoredBooks.filter((_, idx) => relevance[idx]?.bucket === "out_of_niche");
+        // Sort by finalRelevanceScore descending - most relevant books first
+        const sortedByRelevance = [...scoredBooks].sort((a, b) => {
+          const scoreA = (a as any).finalRelevanceScore ?? 0;
+          const scoreB = (b as any).finalRelevanceScore ?? 0;
+          return scoreB - scoreA;
+        });
 
-        // Use ONLY core books for primary competition analysis (tighter filtering)
-        // But include adjacent books in the UI display
-        const workingBooks = coreBooks;
-        const displayBooks = [...coreBooks, ...adjacentBooks];
+        console.log("=== RELEVANCE SCORING COMPLETE ===");
+        console.log(`Scored ${sortedByRelevance.length} books`);
+        console.log("Top 5 by relevance:", sortedByRelevance.slice(0, 5).map(b => ({
+          title: b.title.substring(0, 40),
+          score: ((b as any).finalRelevanceScore ?? 0).toFixed(3),
+        })));
 
-        console.log("=== RELEVANCE DEBUG (with buckets) ===");
-        console.log("Relevance filter:", {
-          totalBooks: books.length,
-          coreBooks: coreBooks.length,
-          adjacentBooks: adjacentBooks.length,
-          outOfNicheBooks: outOfNicheBooks.length,
+        // Step 3: Dynamic bucket assignment with minimum guarantees
+        const { coreBooks, adjacentBooks, outOfNicheBooks, thresholdsUsed } = 
+          assignBooksWithDynamicThresholds(sortedByRelevance, MIN_CORE_BOOKS, MIN_TOTAL_FOR_STATS);
+
+        // Check if we need to try fallback searches
+        const totalComps = coreBooks.length + adjacentBooks.length;
+        let usedFallback = false;
+        let fallbackAttempts = 0;
+        let currentCoreBooks = coreBooks;
+        let currentAdjacentBooks = adjacentBooks;
+        let currentOutOfNicheBooks = outOfNicheBooks;
+
+        if (totalComps < MIN_TOTAL_FOR_STATS && normalizedTerms.fallbackSearches.length > 0) {
+          console.log(`=== TRYING FALLBACK SEARCHES (only ${totalComps} comps) ===`);
+          
+          for (const fallbackTerm of normalizedTerms.fallbackSearches) {
+            fallbackAttempts++;
+            console.log(`Fallback attempt ${fallbackAttempts}: "${fallbackTerm}"`);
+            
+            const { books: fallbackRawBooks } = await fetchAmazonBooks(fallbackTerm);
+            if (!fallbackRawBooks || fallbackRawBooks.length === 0) continue;
+
+            const fallbackBooks: NormalizedBook[] = fallbackRawBooks.map((b) => ({
+              ...b,
+              effectiveRank: computeEffectiveRank(b),
+              rank: computeEffectiveRank(b),
+              rankSource: typeof b.rawRank === "number" && b.rawRank > 0 && b.rawRank < 900_000
+                ? "bestseller" : "heuristic",
+            }));
+
+            // Score fallback books
+            const fallbackForRelevance: BookForRelevance[] = fallbackBooks.map((b) => ({
+              title: b.title,
+              categories: b.rawCategories ?? [],
+            }));
+
+            const fallbackRelevance = await scoreBooksForNiche(
+              openai,
+              idea, // Use original idea for scoring, not fallback term
+              fallbackForRelevance,
+              { boostKeywords: normalizedTerms.keywordTokens, useAdaptiveThresholds: false }
+            );
+
+            const scoredFallback: NormalizedBook[] = fallbackBooks.map((b, idx) => ({
+              ...b,
+              semanticScore: fallbackRelevance[idx]?.semanticScore ?? 0,
+              finalRelevanceScore: fallbackRelevance[idx]?.finalScore ?? 0,
+            }));
+
+            // Merge with existing books (dedupe by ASIN)
+            const existingAsins = new Set(sortedByRelevance.map(b => b.asin).filter(Boolean));
+            const newBooks = scoredFallback.filter(b => b.asin && !existingAsins.has(b.asin));
+            
+            if (newBooks.length > 0) {
+              const mergedBooks = [...sortedByRelevance, ...newBooks].sort((a, b) => {
+                const scoreA = (a as any).finalRelevanceScore ?? 0;
+                const scoreB = (b as any).finalRelevanceScore ?? 0;
+                return scoreB - scoreA;
+              });
+
+              const newBuckets = assignBooksWithDynamicThresholds(
+                mergedBooks, MIN_CORE_BOOKS, MIN_TOTAL_FOR_STATS
+              );
+
+              const newTotal = newBuckets.coreBooks.length + newBuckets.adjacentBooks.length;
+              if (newTotal > totalComps) {
+                currentCoreBooks = newBuckets.coreBooks;
+                currentAdjacentBooks = newBuckets.adjacentBooks;
+                currentOutOfNicheBooks = newBuckets.outOfNicheBooks;
+                usedFallback = true;
+                console.log(`Fallback improved: ${totalComps} → ${newTotal} comps`);
+              }
+
+              if (newTotal >= MIN_TOTAL_FOR_STATS) {
+                console.log(`Fallback success: reached ${newTotal} comps`);
+                break;
+              }
+            }
+          }
+        }
+
+        // Use working book set (core + adjacent for stats, core only for primary analysis)
+        const workingBooks = currentCoreBooks;
+        const displayBooks = [...currentCoreBooks, ...currentAdjacentBooks];
+
+        console.log("=== FINAL BUCKET DISTRIBUTION ===");
+        console.log({
+          coreBooks: currentCoreBooks.length,
+          adjacentBooks: currentAdjacentBooks.length,
+          outOfNicheBooks: currentOutOfNicheBooks.length,
           usedForStats: workingBooks.length,
+          usedFallback,
+          fallbackAttempts,
         });
 
-        // Log score distribution
-        const allScores = relevance.map(r => r.finalScore);
-        console.log("Score distribution:", {
-          min: Math.min(...allScores).toFixed(2),
-          max: Math.max(...allScores).toFixed(2),
-          avg: (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(2),
-        });
-
-        // Sample titles from each bucket for debugging
-        if (coreBooks.length > 0) {
-          console.log("CORE sample:", coreBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
-        }
-        if (adjacentBooks.length > 0) {
-          console.log("ADJACENT sample:", adjacentBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
-        }
-        if (outOfNicheBooks.length > 0) {
-          console.log("OUT_OF_NICHE sample:", outOfNicheBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
-        }
-
-        // === PHASE 2: ENRICHMENT - Targeted product lookups for top core+adjacent books ===
-        // This gets us full category hierarchies, accurate ratings/reviews, and better BSR
-        const booksToEnrich = [...coreBooks, ...adjacentBooks].slice(0, 8);
-        const enrichmentMap = await batchEnrichBooks(booksToEnrich, 8);
+        // Step 4: ENRICHMENT - Select top books by RELEVANCE (not position) for enrichment
+        // Sort display books by relevance and pick top N for enrichment
+        const booksToEnrich = displayBooks
+          .sort((a, b) => {
+            const scoreA = (a as any).finalRelevanceScore ?? 0;
+            const scoreB = (b as any).finalRelevanceScore ?? 0;
+            return scoreB - scoreA;
+          })
+          .slice(0, MAX_BOOKS_TO_ENRICH);
+        
+        const enrichmentMap = await batchEnrichBooks(booksToEnrich, MAX_BOOKS_TO_ENRICH);
         
         // Apply enrichment to the books
-        const enrichedCoreBooks = applyEnrichmentToBooks(coreBooks, enrichmentMap);
-        const enrichedAdjacentBooks = applyEnrichmentToBooks(adjacentBooks, enrichmentMap);
+        const enrichedCoreBooks = applyEnrichmentToBooks(currentCoreBooks, enrichmentMap);
+        const enrichedAdjacentBooks = applyEnrichmentToBooks(currentAdjacentBooks, enrichmentMap);
         const enrichedDisplayBooks = [...enrichedCoreBooks, ...enrichedAdjacentBooks];
         const enrichedWorkingBooks = enrichedCoreBooks;
 
