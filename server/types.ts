@@ -98,3 +98,50 @@ export interface InferredGenre {
   amazonPrimaryPath: string | null;
   amazonAlternatePaths: string[];
 }
+
+// Canonical niche - the semantic anchor that prevents category drift
+// This is derived from user input BEFORE Amazon search, and serves as
+// a filter to ensure Amazon categories don't override the user's intent
+export interface CanonicalNiche {
+  // The expected high-level genre (more specific than just fiction/nonfiction)
+  expectedGenre: string; // e.g., "Self-Help", "Romance", "Mystery", "Business"
+  
+  // Expected domain areas the book should cover
+  expectedDomains: string[]; // e.g., ["Personal Transformation", "Motivation", "Purpose"]
+  
+  // Worldview orientation (affects which categories are acceptable)
+  worldview: "secular" | "spiritual" | "religious" | "mixed";
+  
+  // Target audience summary
+  audience: {
+    ageGroup: "kids" | "teens" | "young_adult" | "adult" | "mixed" | "unsure";
+    focus?: string; // e.g., "women entrepreneurs", "new parents"
+  };
+  
+  // Fiction vs nonfiction (hard lock - never overridden by Amazon)
+  category: "fiction" | "nonfiction";
+  
+  // Categories that are VALID for this niche (Amazon categories must align)
+  validAmazonCategories: string[]; // e.g., ["Self-Help", "Personal Transformation", "Motivation"]
+  
+  // Categories that would indicate drift (should trigger rejection)
+  invalidCategories: string[]; // e.g., ["New Age", "Divination", "Romance", "Fiction"]
+}
+
+// Search term candidate with purity scoring
+export interface SearchTermCandidate {
+  term: string;
+  source: "niche" | "domain" | "topic" | "keyword";
+  priority: number; // 1 = highest priority
+}
+
+// Search result scoring for multi-search selection
+export interface SearchResultScore {
+  term: string;
+  totalBooks: number;
+  coreBooks: number;
+  adjacentBooks: number;
+  categoryPurity: number; // 0-1, how well categories align with canonical niche
+  domainAlignment: number; // 0-1, how well book topics match expected domains
+  overallScore: number; // Combined score for selection
+}

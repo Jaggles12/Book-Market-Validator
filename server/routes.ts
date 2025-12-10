@@ -4,11 +4,12 @@ import axios from "axios";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
-import { AudienceProfile, NicheProfile, NormalizedBook, InferredGenre } from "./types";
+import { AudienceProfile, NicheProfile, NormalizedBook, InferredGenre, CanonicalNiche } from "./types";
 import { getAudienceProfile } from "./audience";
 import { scoreBooksForNiche, type BookForRelevance } from "./relevance";
 import { normalizeSearchTerms, type NormalizedSearchTerms } from "./keywordNormalizer";
 import { inferGenreFromBooks, generateFriendlyGenreLabelFromInferred } from "./genreInference";
+import { deriveCanonicalNiche, computeSearchResultPurity, scoreCategoryAlignment, generateSearchTermsFromNiche } from "./canonicalNiche";
 
 
 // -----------------------------
@@ -3266,6 +3267,17 @@ export async function registerRoutes(
           keywordTokens: normalizedTerms.keywordTokens,
         });
 
+        // Step 0.6: Derive canonical niche anchor (prevents category drift)
+        const canonicalNiche = deriveCanonicalNiche(idea, nicheProfile, audience);
+        console.log("=== CANONICAL NICHE ANCHOR ===", {
+          expectedGenre: canonicalNiche.expectedGenre,
+          expectedDomains: canonicalNiche.expectedDomains,
+          worldview: canonicalNiche.worldview,
+          category: canonicalNiche.category,
+          validCategories: canonicalNiche.validAmazonCategories.slice(0, 5),
+          invalidCategories: canonicalNiche.invalidCategories.slice(0, 5),
+        });
+
         // Step 1: Amazon data
         const { books: rawBooks, isDemo } = await fetchAmazonBooks(searchTerm);
 
@@ -3378,9 +3390,65 @@ export async function registerRoutes(
           score: ((b as any).finalRelevanceScore ?? 0).toFixed(3),
         })));
 
-        // Step 3: Dynamic bucket assignment with minimum guarantees
+        // Step 3: Category purity check against canonical niche anchor (BEFORE bucket assignment)
+        const purityCheck = computeSearchResultPurity(
+          sortedByRelevance.map(b => ({
+            amazonCategoryPaths: b.amazonCategoryPaths,
+            semanticScore: b.semanticScore,
+            relevanceBucket: b.relevanceBucket,
+          })),
+          canonicalNiche
+        );
+        
+        console.log("=== CATEGORY PURITY CHECK ===", {
+          categoryPurity: purityCheck.categoryPurity.toFixed(3),
+          domainAlignment: purityCheck.domainAlignment.toFixed(3),
+          coreCount: purityCheck.coreCount,
+          driftBooks: purityCheck.driftBooks,
+          isDrifted: purityCheck.driftBooks > sortedByRelevance.length * 0.3,
+        });
+
+        // Enforce category alignment: filter out heavily drifted books
+        // Books that are clearly in invalid categories get demoted/removed
+        const filteredByPurity = sortedByRelevance.filter(book => {
+          if (!book.amazonCategoryPaths || book.amazonCategoryPaths.length === 0) {
+            return true; // Keep books without category data (we can't evaluate them)
+          }
+          
+          // Check if any of the book's categories are invalid for this niche
+          let hasValidCategory = false;
+          let hasInvalidCategory = false;
+          
+          for (const path of book.amazonCategoryPaths) {
+            const alignment = scoreCategoryAlignment(path, canonicalNiche);
+            if (alignment.isDrift) {
+              hasInvalidCategory = true;
+            }
+            if (alignment.score >= 0.5) {
+              hasValidCategory = true;
+            }
+          }
+          
+          // Keep book if it has at least one valid category OR no invalid categories
+          // Drop books that ONLY have invalid categories
+          if (hasInvalidCategory && !hasValidCategory) {
+            console.log(`🚫 Dropping drifted book: "${book.title.substring(0, 40)}..."`);
+            return false;
+          }
+          return true;
+        });
+        
+        console.log(`=== CATEGORY ENFORCEMENT ===`);
+        console.log(`Before filter: ${sortedByRelevance.length} books`);
+        console.log(`After filter: ${filteredByPurity.length} books`);
+        console.log(`Dropped: ${sortedByRelevance.length - filteredByPurity.length} drifted books`);
+
+        // Use filtered books for bucket assignment
+        const booksForBuckets = filteredByPurity.length >= 5 ? filteredByPurity : sortedByRelevance;
+
+        // Step 4: Dynamic bucket assignment with minimum guarantees (on filtered books)
         const { coreBooks, adjacentBooks, outOfNicheBooks, thresholdsUsed } = 
-          assignBooksWithDynamicThresholds(sortedByRelevance, MIN_CORE_BOOKS, MIN_TOTAL_FOR_STATS);
+          assignBooksWithDynamicThresholds(booksForBuckets, MIN_CORE_BOOKS, MIN_TOTAL_FOR_STATS);
 
         // Check if we need to try fallback searches
         const totalComps = coreBooks.length + adjacentBooks.length;
@@ -3552,11 +3620,11 @@ export async function registerRoutes(
         const analysis = computeMarketSnapshot(enrichedWorkingBooks, genre, enrichedCoreBooks, enrichedAdjacentBooks);
 
         // Infer genre from enriched Amazon category data (use ALL enriched books for better clustering)
-        const inferredGenre = inferGenreFromBooks(enrichedDisplayBooks, genre.category);
+        let inferredGenre = inferGenreFromBooks(enrichedDisplayBooks, genre.category);
         const inferredGenreLabel = generateFriendlyGenreLabelFromInferred(inferredGenre);
         
         console.log("=== GENRE INFERENCE DEBUG ===");
-        console.log("Inferred genre:", {
+        console.log("Inferred genre (before anchor check):", {
           category: inferredGenre.category,
           shelf: inferredGenre.shelf,
           subgenre: inferredGenre.subgenre,
@@ -3564,6 +3632,35 @@ export async function registerRoutes(
           primaryPath: inferredGenre.amazonPrimaryPath,
           alternatePaths: inferredGenre.amazonAlternatePaths,
         });
+
+        // Step: Anchor-based genre validation - prevent category drift
+        // The canonical niche anchors what genres are acceptable; Amazon data refines but cannot override
+        const inferredPath = inferredGenre.amazonPrimaryPath || `${inferredGenre.shelf} > ${inferredGenre.subgenre}`;
+        const categoryCheck = scoreCategoryAlignment(inferredPath, canonicalNiche);
+        
+        if (categoryCheck.isDrift) {
+          console.warn(
+            `⚠️ GENRE DRIFT BLOCKED: Amazon inferred "${inferredGenre.shelf} > ${inferredGenre.subgenre}" ` +
+            `but this conflicts with the canonical niche "${canonicalNiche.expectedGenre}". ` +
+            `Reason: ${categoryCheck.reason}. Falling back to canonical niche.`
+          );
+          
+          // Fall back to canonical niche instead of drifted Amazon inference
+          inferredGenre = {
+            ...inferredGenre,
+            shelf: canonicalNiche.expectedGenre,
+            subgenre: canonicalNiche.expectedDomains[0] || "General",
+            microgenre: null,
+            // Keep Amazon paths for reference but mark as overridden
+          };
+          
+          console.log("Inferred genre (after anchor correction):", {
+            shelf: inferredGenre.shelf,
+            subgenre: inferredGenre.subgenre,
+          });
+        } else {
+          console.log(`✅ Genre alignment OK: purity score ${categoryCheck.score.toFixed(2)}`);
+        }
 
         // Extract the most specific niche label (NOT the full breadcrumb path)
         // Priority: microgenre > subgenre > last segment of Amazon path > friendly fallback
