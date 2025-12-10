@@ -1,0 +1,143 @@
+Your blueprint, positioning, and category recommendations should absolutely use Amazon categories — but they should not be determined only by whatever random Amazon categories appear in the initial noisy search.
+
+What I meant is:
+
+The niche object should anchor what we expect the Amazon categories to be, and the Amazon data should confirm, refine, or course-correct that — not override the niche prematurely.
+
+So the flow becomes:
+
+✅ What You Do Want
+1. Use Amazon categories as the primary basis for:
+
+Final recommended categories
+
+Competitive landscape analysis
+
+Pricing expectations
+
+Keyword selection
+
+Blueprint positioning (when the comps are correct)
+
+2. BUT only after verifying that the Amazon categories align with the user’s niche.
+
+This is the part that is currently broken in your system.
+
+Right now, you are:
+
+❌ Taking a noisy search term
+
+→ returning a bunch of unrelated books
+→ discovering some strong books in unexpected categories
+→ assuming that category = your user’s niche
+→ building the blueprint & verdict around that category
+
+This is how you ended up turning a life-direction self-help idea into:
+
+New Age → Mental & Spiritual Healing → Divination / Gene Keys
+
+which is not at all what the author intended.
+
+Amazon categories are powerful — but only when you’re using the right pool of books.
+
+✅ What You Actually Want (Correct Pipeline)
+Step 1: Derive a structured niche from the user
+
+This is NOT the final category — it’s the anchor.
+
+Example:
+
+{
+  "canonicalGenre": "Self-Help",
+  "expectedDomains": ["Personal Transformation", "Motivation", "Purpose"],
+  "worldview": "secular or mixed",
+  "audience": "general adults"
+}
+
+
+This keeps you from drifting into unrelated genres (New Age, Fiction, Romance, etc.).
+
+Step 2: Generate good Amazon search terms FROM the niche
+
+Not from the literal user sentence.
+
+This yields cleaner comps in cleaner categories.
+
+Step 3: Run multiple Amazon searches
+
+And score them for:
+
+% core_books
+
+relevance
+
+category purity
+
+alignment with the NICHE expectations
+
+This gives you an objective way to select the right search term.
+
+Step 4: Only once you’ve identified a “high-purity” comp pool
+
+THEN you:
+
+⭐ Build the blueprint
+⭐ Assign final Amazon categories
+⭐ Offer keyword recommendations
+⭐ Deliver a verdict (GREEN/YELLOW/RED)
+
+At this stage Amazon categories absolutely DO drive the blueprint and positioning.
+
+But the niche object protects you from misinterpretation.
+It ensures that:
+
+You don’t get pulled into Divination because of The Gene Keys
+
+You don’t build a blueprint for New Age when the user wants SELF-HELP
+
+You don’t issue a GREEN verdict off 3 core books in the wrong category
+
+You don’t position the book incorrectly
+
+🔥 KEY IDEA (Write this into your system docs)
+
+Amazon categories determine your final genre, BUT ONLY after the system is confident that they represent the correct niche.
+The niche object is the anchor that prevents category drift.
+
+This gives you both:
+
+✔ The power of Amazon’s real-world data
+✔ The correctness and stability of a semantic niche model
+🚧 What Your System Does Now (The Bug)
+
+Right now:
+
+Extract niche → turn it into a long, unnatural search term
+
+Amazon returns random books
+
+Category inference sees New Age / Divination in the comps
+
+System says: “Ah! Your niche is Mental & Spiritual Healing!”
+
+Blueprint & verdict follow that category
+
+This is category drift.
+
+You’re letting Amazon’s messiness overpower the niche — instead of using the niche as a filter to select good Amazon search terms.
+
+🧱 What You Need to Implement Next (Minimal Fix)
+
+Build structured niche object
+
+Generate 3–8 search terms from the niche
+
+Score each search term
+
+Pick the search with the cleanest category alignment
+
+ONLY THEN infer Amazon categories
+
+ONLY THEN build blueprint + category recommendations
+
+Once you do this, everything else in your tool becomes dramatically more stable and accurate.
