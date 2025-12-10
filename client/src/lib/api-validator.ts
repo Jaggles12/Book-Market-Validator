@@ -125,6 +125,7 @@ export interface ValidateResponse {
 
   savedResultId?: string;
   salesLeaders?: SalesLeader[];
+  adjacentSalesLeaders?: SalesLeader[];
 }
 
 /**

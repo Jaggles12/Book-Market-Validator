@@ -1924,13 +1924,23 @@ function computeMarketSnapshot(
   const adjacentStats = computeBucketStats(adjacent);
 
   if (books.length === 0) {
+    // No working books - but check if we have adjacent data to report
+    const hasAdjacentData = adjacentStats.totalBooks > 0 && adjacentStats.avgRating > 0;
+    
+    let verdictReason: string;
+    if (hasAdjacentData) {
+      verdictReason = `No direct competitors found for this exact keyword, but we found ${adjacentStats.totalBooks} adjacent title(s) with an average rating of ${adjacentStats.avgRating.toFixed(1)}★. This suggests the concept may fit into a broader space.`;
+    } else {
+      verdictReason = "No relevant books found — this niche may be untested or use different terminology on Amazon.";
+    }
+    
     return {
       totalBooks: 0,
-      avgRating: 0,
-      avgReviews: 0,
-      priceMin: null,
-      priceMax: null,
-      priceMedian: null,
+      avgRating: hasAdjacentData ? adjacentStats.avgRating : 0,
+      avgReviews: hasAdjacentData ? adjacentStats.avgReviews : 0,
+      priceMin: hasAdjacentData ? adjacentStats.priceMin : null,
+      priceMax: hasAdjacentData ? adjacentStats.priceMax : null,
+      priceMedian: hasAdjacentData ? adjacentStats.priceMedian : null,
       strongCompetitors: 0,
       midCompetitors: 0,
       lowReviewBooks: 0,
@@ -1944,9 +1954,9 @@ function computeMarketSnapshot(
       evergreenSignal: false,
       cheapBookShare: 0,
       premiumBookShare: 0,
-      verdict: "YELLOW" as const,
-      verdictReason: "No relevant books found — this niche may be untested or use different terminology on Amazon.",
-      demandLevel: "LOW" as const,
+      verdict: hasAdjacentData ? "YELLOW" as const : "YELLOW" as const,
+      verdictReason,
+      demandLevel: hasAdjacentData && adjacentStats.avgReviews >= 100 ? "MEDIUM" as const : "LOW" as const,
       competitionLevel: "LOW" as const,
       coreStats,
       adjacentStats,
@@ -2000,17 +2010,22 @@ function computeMarketSnapshot(
     }
   }
 
-  const ratings = books.map((b) => b.rating || 0);
-  const reviews = books.map((b) => b.reviews || 0);
+  // Only include books with actual ratings (not null/undefined/0) for avg calculation
+  const validRatings = books.map((b) => b.rating).filter((r): r is number => typeof r === "number" && r > 0);
+  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r >= 0);
 
   const pricesRaw = books
     .map((b) => b.price)
     .filter((p): p is number => typeof p === "number" && p > 0);
 
-  const avgRating =
-    ratings.reduce((sum, r) => sum + r, 0) / (ratings.length || 1);
-  const avgReviews =
-    reviews.reduce((sum, r) => sum + r, 0) / (reviews.length || 1);
+  // Use valid ratings only, fallback to adjacent stats if no valid ratings in working set
+  let avgRating = validRatings.length > 0
+    ? validRatings.reduce((sum, r) => sum + r, 0) / validRatings.length
+    : (adjacentStats.avgRating > 0 ? adjacentStats.avgRating : 0);
+  
+  const avgReviews = validReviews.length > 0
+    ? validReviews.reduce((sum, r) => sum + r, 0) / validReviews.length
+    : (adjacentStats.avgReviews > 0 ? adjacentStats.avgReviews : 0);
 
   let priceMin: number | null = null;
   let priceMax: number | null = null;
@@ -2898,7 +2913,7 @@ export async function registerRoutes(
           console.log("OUT_OF_NICHE sample:", outOfNicheBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
         }
 
-        // Sales leaders
+        // Sales leaders from core books
         const rankedCandidates = workingBooks
           .filter(
             (b) =>
@@ -2909,6 +2924,28 @@ export async function registerRoutes(
           .sort((a, b) => a.effectiveRank! - b.effectiveRank!);
 
         const salesLeaders = rankedCandidates.slice(0, 5).map((b) => ({
+          title: b.title,
+          author:
+            Array.isArray(b.authors) && b.authors.length > 0
+              ? b.authors.join(", ")
+              : "Unknown",
+          rank: b.effectiveRank as number,
+          rating: b.rating ?? null,
+          reviews: b.reviews ?? null,
+          price: b.price ?? null,
+        }));
+
+        // Adjacent sales leaders when core is empty - show top performers from adjacent niche
+        const adjacentRankedCandidates = adjacentBooks
+          .filter(
+            (b) =>
+              typeof b.effectiveRank === "number" &&
+              b.effectiveRank > 0 &&
+              b.effectiveRank < 900_000
+          )
+          .sort((a, b) => a.effectiveRank! - b.effectiveRank!);
+
+        const adjacentSalesLeaders = adjacentRankedCandidates.slice(0, 3).map((b) => ({
           title: b.title,
           author:
             Array.isArray(b.authors) && b.authors.length > 0
@@ -2941,13 +2978,42 @@ export async function registerRoutes(
         const amazonStyleLabel = inferredGenre.amazonPrimaryPath 
           ? inferredGenre.amazonPrimaryPath.replace(/^Books\s*>\s*/i, "").trim()
           : null;
-        const friendlyGenreLabel = inferredGenreLabel || generateFriendlyGenreLabel(
+        let friendlyGenreLabel = inferredGenreLabel || generateFriendlyGenreLabel(
           searchTerm,
           genre,
           idea
         );
         // Prefer Amazon-style label for authenticity, fall back to friendly label
-        const displayGenreLabel = amazonStyleLabel || friendlyGenreLabel;
+        let displayGenreLabel = amazonStyleLabel || friendlyGenreLabel;
+        
+        // If we still have "General" in the label, try to use derived category from search term
+        // For example: "southern small-town psychological thriller" -> "Psychological Thriller (Southern)"
+        if (displayGenreLabel.includes("General")) {
+          // Try to extract a more specific label from search term
+          const searchTermLower = searchTerm.toLowerCase();
+          if (searchTermLower.includes("thriller")) {
+            const modifiers: string[] = [];
+            if (searchTermLower.includes("psychological")) modifiers.push("Psychological");
+            if (searchTermLower.includes("domestic")) modifiers.push("Domestic");
+            if (searchTermLower.includes("southern")) modifiers.push("Southern");
+            if (searchTermLower.includes("small-town") || searchTermLower.includes("small town")) modifiers.push("Small-Town");
+            const base = modifiers.length > 0 ? `${modifiers.join(" ")} Thriller` : "Thriller";
+            displayGenreLabel = base;
+            friendlyGenreLabel = base;
+          } else if (searchTermLower.includes("mystery")) {
+            displayGenreLabel = "Mystery";
+            friendlyGenreLabel = "Mystery";
+          } else if (searchTermLower.includes("romance")) {
+            displayGenreLabel = "Romance";
+            friendlyGenreLabel = "Romance";
+          } else if (searchTermLower.includes("self-help") || searchTermLower.includes("self help")) {
+            displayGenreLabel = "Self-Help";
+            friendlyGenreLabel = "Self-Help";
+          } else if (searchTermLower.includes("personal finance")) {
+            displayGenreLabel = "Personal Finance";
+            friendlyGenreLabel = "Personal Finance";
+          }
+        }
 
         const normalizedGenre = {
           category: genre.category,
@@ -3121,6 +3187,8 @@ export async function registerRoutes(
             nextSteps: fullAnalysis.nextSteps,
           },
           salesLeaders,
+          // NEW: Adjacent sales leaders when core is sparse
+          adjacentSalesLeaders: salesLeaders.length === 0 ? adjacentSalesLeaders : [],
         };
 
         let savedResultId: string | null = null;
