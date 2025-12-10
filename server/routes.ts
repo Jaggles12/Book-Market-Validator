@@ -3876,13 +3876,24 @@ export async function registerRoutes(
         let verdictReason: string;
 
         if (rankBand) {
-          const categoryLabel = topRankCategories.length > 0
-            ? topRankCategories.slice(0, 2).join(", ")
-            : "their Amazon subcategories";
-          verdictReason =
-            `Top comparable titles rank from ${rankBand.bestFormatted} ` +
-            `to ${rankBand.worstFormatted} in ${categoryLabel} (category ranks, not overall store), indicating ${demandDescription} ` +
-            `with ${competitionDescription}.`;
+          // Count how many ranked titles we have
+          const rankedCount = salesLeaders.filter(b => typeof b.rank === 'number' && b.rank > 0 && b.rank < 900_000).length;
+          const isSingleRank = rankedCount === 1 || rankBand.best === rankBand.worst;
+          
+          // Use "overall Books store" labeling since we're using the main rank
+          const rankLabel = "the overall Books store";
+          
+          if (isSingleRank) {
+            // Single title or identical ranks - don't fake a range
+            verdictReason =
+              `Top comparable title ranks around ${rankBand.bestFormatted} in ${rankLabel}, indicating ${demandDescription} ` +
+              `with ${competitionDescription}.`;
+          } else {
+            // Multiple distinct ranks - show actual range
+            verdictReason =
+              `Top comparable titles rank from ${rankBand.bestFormatted} to ${rankBand.worstFormatted} in ${rankLabel}, indicating ${demandDescription} ` +
+              `with ${competitionDescription}.`;
+          }
 
           if (analysis.verdictReason) {
             verdictReason += ` ${analysis.verdictReason}`;
