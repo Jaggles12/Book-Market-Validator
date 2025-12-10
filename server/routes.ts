@@ -7,6 +7,7 @@ import { storage } from "./storage";
 import { AudienceProfile, NicheProfile, NormalizedBook, InferredGenre } from "./types";
 import { getAudienceProfile } from "./audience";
 import { scoreBooksForNiche, type BookForRelevance } from "./relevance";
+import { normalizeSearchTerms, type NormalizedSearchTerms } from "./keywordNormalizer";
 import { inferGenreFromBooks, generateFriendlyGenreLabelFromInferred } from "./genreInference";
 
 
@@ -3005,6 +3006,15 @@ export async function registerRoutes(
             `(extracted=${isExtracted})`
         );
 
+        // Step 0.5: Normalize search terms for better keyword matching
+        const normalizedTerms = await normalizeSearchTerms(openai, idea, lockedCategory);
+        console.log("=== NORMALIZED SEARCH TERMS ===", {
+          canonicalGenre: normalizedTerms.canonicalGenre,
+          primarySearch: normalizedTerms.primarySearch,
+          fallbackSearches: normalizedTerms.fallbackSearches,
+          keywordTokens: normalizedTerms.keywordTokens,
+        });
+
         // Step 1: Amazon data
         const { books: rawBooks, isDemo } = await fetchAmazonBooks(searchTerm);
 
@@ -3089,7 +3099,11 @@ export async function registerRoutes(
         const relevance = await scoreBooksForNiche(
           openai,
           searchTerm,
-          booksForRelevance
+          booksForRelevance,
+          {
+            boostKeywords: normalizedTerms.keywordTokens,
+            useAdaptiveThresholds: true,
+          }
         );
 
         // Attach relevance scores and buckets to books

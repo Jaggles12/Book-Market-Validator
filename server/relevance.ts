@@ -35,6 +35,12 @@ export interface RelevanceOptions {
   keywordWeight?: number;     // default 0.3
   semanticWeight?: number;    // default 0.5
   categoryWeight?: number;    // default 0.2
+
+  // Keywords for boosting (from keyword normalizer)
+  boostKeywords?: string[];   // Keywords that should boost relevance scores
+  
+  // Enable adaptive thresholds when all books fail hard thresholds
+  useAdaptiveThresholds?: boolean; // default true
 }
 
 // ------------------------------------
@@ -143,10 +149,16 @@ function tokenize(input: string): string[] {
 /**
  * Keyword score: token overlap between niche and title tokens.
  * Returns 0–1 (fraction of niche tokens that appear in the title).
+ * Now also accepts boostKeywords for additional matching.
  */
-function computeKeywordScore(niche: string, bookTitle: string): number {
+function computeKeywordScore(
+  niche: string, 
+  bookTitle: string,
+  boostKeywords: string[] = []
+): number {
   const nicheTokens = tokenize(niche);
   const titleTokens = new Set(tokenize(bookTitle));
+  const titleLower = bookTitle.toLowerCase();
 
   if (nicheTokens.length === 0 || titleTokens.size === 0) return 0;
 
@@ -154,8 +166,24 @@ function computeKeywordScore(niche: string, bookTitle: string): number {
   for (const token of nicheTokens) {
     if (titleTokens.has(token)) hits++;
   }
+  
+  // Boost: check for boostKeywords in title (partial match allowed)
+  let boostHits = 0;
+  for (const keyword of boostKeywords) {
+    if (titleLower.includes(keyword.toLowerCase())) {
+      boostHits++;
+    }
+  }
+  
+  // Base score from niche token overlap
+  const baseScore = hits / nicheTokens.length;
+  
+  // Boost from normalized keywords (up to 0.3 extra)
+  const boostScore = boostKeywords.length > 0 
+    ? Math.min(0.3, (boostHits / boostKeywords.length) * 0.5)
+    : 0;
 
-  return hits / nicheTokens.length;
+  return Math.min(1.0, baseScore + boostScore);
 }
 
 /**
@@ -176,7 +204,8 @@ function computeCategoryScore(niche: string, categories?: string[]): number {
   if (catTokens.size === 0) return 0;
 
   let hits = 0;
-  for (const t of nicheTokens) {
+  const nicheTokensArray = Array.from(nicheTokens);
+  for (const t of nicheTokensArray) {
     if (catTokens.has(t)) hits++;
   }
 
@@ -257,6 +286,8 @@ export async function scoreBooksForNiche(
     keywordWeight = 0.3,
     semanticWeight = 0.5,
     categoryWeight = 0.2,
+    boostKeywords = [],
+    useAdaptiveThresholds = true,
   } = options;
 
   if (!niche || books.length === 0) {
@@ -271,8 +302,8 @@ export async function scoreBooksForNiche(
     }));
   }
 
-  // Local lexical scores
-  const keywordScores = books.map((b) => computeKeywordScore(niche, b.title));
+  // Local lexical scores (now with boost keywords)
+  const keywordScores = books.map((b) => computeKeywordScore(niche, b.title, boostKeywords));
   const categoryScores = books.map((b) =>
     computeCategoryScore(niche, b.categories)
   );
@@ -282,30 +313,73 @@ export async function scoreBooksForNiche(
 
   // Debug: inspect semantic scores from the LLM
   console.log("Semantic scores:", semanticScores);
+  if (boostKeywords.length > 0) {
+    console.log("Boost keywords applied:", boostKeywords);
+  }
+
+  // First pass: compute final scores
+  const finalScores = books.map((_, index) => {
+    const keywordScore = keywordScores[index] ?? 0;
+    const categoryScore = categoryScores[index] ?? 0;
+    const semanticScore = semanticScores[index] ?? 0;
+
+    return keywordScore * keywordWeight +
+           semanticScore * semanticWeight +
+           categoryScore * categoryWeight;
+  });
+
+  // Check if all books would fail hard thresholds
+  const coreCount = finalScores.filter(s => s >= 0.70).length;
+  const adjacentCount = finalScores.filter(s => s >= 0.50 && s < 0.70).length;
+  const allFailed = coreCount === 0 && adjacentCount === 0;
+
+  // Adaptive thresholds: use percentile-based bucketing if all books fail hard thresholds
+  let coreThreshold = 0.70;
+  let adjacentThreshold = 0.50;
+  
+  if (useAdaptiveThresholds && allFailed && books.length >= 3) {
+    // Sort scores descending to find percentile boundaries
+    const sortedScores = [...finalScores].sort((a, b) => b - a);
+    const n = sortedScores.length;
+    
+    // Top 25% = core, next 35% = adjacent (rest = out_of_niche)
+    const coreIndex = Math.max(0, Math.floor(n * 0.25) - 1);
+    const adjacentIndex = Math.max(0, Math.floor(n * 0.60) - 1);
+    
+    coreThreshold = sortedScores[coreIndex] ?? 0.70;
+    adjacentThreshold = sortedScores[adjacentIndex] ?? 0.50;
+    
+    // Ensure thresholds are sensible (core > adjacent, both >= minimum floor)
+    const minFloor = 0.15; // Absolute minimum to be considered relevant
+    coreThreshold = Math.max(coreThreshold, minFloor + 0.05);
+    adjacentThreshold = Math.max(adjacentThreshold, minFloor);
+    
+    if (coreThreshold <= adjacentThreshold) {
+      coreThreshold = adjacentThreshold + 0.05;
+    }
+    
+    console.log("=== ADAPTIVE THRESHOLDS ACTIVATED ===");
+    console.log(`All ${books.length} books failed hard thresholds (0.70/0.50)`);
+    console.log(`New thresholds: core >= ${coreThreshold.toFixed(2)}, adjacent >= ${adjacentThreshold.toFixed(2)}`);
+  }
 
   const results: RelevanceScores[] = books.map((_, index) => {
     const keywordScore = keywordScores[index] ?? 0;
     const categoryScore = categoryScores[index] ?? 0;
     const semanticScore = semanticScores[index] ?? 0;
+    const finalScore = finalScores[index];
 
-    // Weighted combined score (for ranking / sorting and bucket assignment)
-    const finalScore =
-      keywordScore * keywordWeight +
-      semanticScore * semanticWeight +
-      categoryScore * categoryWeight;
-
-    // Assign bucket based on finalScore thresholds
+    // Assign bucket based on (potentially adaptive) thresholds
     let bucket: RelevanceBucket;
-    if (finalScore >= 0.70) {
+    if (finalScore >= coreThreshold) {
       bucket = "core";
-    } else if (finalScore >= 0.50) {
+    } else if (finalScore >= adjacentThreshold) {
       bucket = "adjacent";
     } else {
       bucket = "out_of_niche";
     }
 
     // isRelevant = true for core and adjacent (used for primary analysis)
-    // Only core books are used for main competition stats
     const isRelevant = bucket === "core" || bucket === "adjacent";
 
     return {
@@ -318,6 +392,12 @@ export async function scoreBooksForNiche(
       bucket,
     };
   });
+
+  // Log bucket distribution
+  const coreFinal = results.filter(r => r.bucket === "core").length;
+  const adjacentFinal = results.filter(r => r.bucket === "adjacent").length;
+  const outFinal = results.filter(r => r.bucket === "out_of_niche").length;
+  console.log(`Bucket distribution: core=${coreFinal}, adjacent=${adjacentFinal}, out_of_niche=${outFinal}`);
 
   return results;
 }
