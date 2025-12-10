@@ -13,12 +13,12 @@ import { deriveCanonicalNiche, computeSearchResultPurity, scoreCategoryAlignment
 import { runBookMarketValidation, generateFriendlyGenreLabel } from "./validatorService";
 import { amazonClient, RainforestBook, RainforestRankEntry, ProductEnrichmentData } from "./amazon";
 
-// Destructure from the provider-agnostic amazon client
+// Destructure functions from the provider-agnostic amazon client
+// Note: demoMode is NOT destructured because it needs live binding (getter)
 const {
   fetchAmazonBooks,
   computeEffectiveRank,
   generateDemoBooks,
-  demoMode,
   setDemoMode,
   extractSubcategoryLabel,
   chooseBestRankFromBestsellers,
@@ -29,6 +29,9 @@ const {
   applyEnrichmentToBooks,
   buildBooksSearchUrl,
 } = amazonClient;
+
+// Access demoMode through the client to maintain live binding
+const getDemoMode = () => amazonClient.demoMode;
 
 
 // -----------------------------
