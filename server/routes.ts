@@ -3471,17 +3471,42 @@ export async function registerRoutes(
           alternatePaths: inferredGenre.amazonAlternatePaths,
         });
 
-        // Use Amazon category path as primary label when available, with friendly fallback
-        const amazonStyleLabel = inferredGenre.amazonPrimaryPath 
-          ? inferredGenre.amazonPrimaryPath.replace(/^Books\s*>\s*/i, "").trim()
-          : null;
-        let friendlyGenreLabel = inferredGenreLabel || generateFriendlyGenreLabel(
+        // Extract the most specific niche label (NOT the full breadcrumb path)
+        // Priority: microgenre > subgenre > last segment of Amazon path > friendly fallback
+        // Also filter out "Kindle" references
+        const extractSpecificNiche = (path: string | null | undefined): string | null => {
+          if (!path) return null;
+          // Filter out Kindle-related paths
+          if (path.toLowerCase().includes("kindle")) return null;
+          // Get the last segment of the path (most specific)
+          const segments = path.split(">").map(s => s.trim());
+          const lastSegment = segments[segments.length - 1];
+          // Skip if it's too generic
+          if (["Books", "Literature & Fiction", "Genre Fiction", "Nonfiction", "eBooks"].includes(lastSegment)) {
+            return segments.length > 1 ? segments[segments.length - 2] : null;
+          }
+          return lastSegment || null;
+        };
+        
+        // Use microgenre or subgenre if available, otherwise extract from path
+        let specificNiche = inferredGenre.microgenre || 
+                           inferredGenre.subgenre || 
+                           extractSpecificNiche(inferredGenre.amazonPrimaryPath);
+        
+        // If we got a niche, capitalize it properly
+        if (specificNiche) {
+          specificNiche = specificNiche.split(/[\s-]+/)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(" ");
+        }
+        
+        let friendlyGenreLabel = specificNiche || inferredGenreLabel || generateFriendlyGenreLabel(
           searchTerm,
           genre,
           idea
         );
-        // Prefer Amazon-style label for authenticity, fall back to friendly label
-        let displayGenreLabel = amazonStyleLabel || friendlyGenreLabel;
+        // Use the specific niche as the display label
+        let displayGenreLabel = friendlyGenreLabel;
         
         // If we still have "General" in the label, try to use derived category from search term
         // For example: "southern small-town psychological thriller" -> "Psychological Thriller (Southern)"
