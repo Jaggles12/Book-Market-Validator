@@ -4,9 +4,10 @@ import axios from "axios";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
-import { AudienceProfile, NicheProfile, NormalizedBook } from "./types";
+import { AudienceProfile, NicheProfile, NormalizedBook, InferredGenre } from "./types";
 import { getAudienceProfile } from "./audience";
 import { scoreBooksForNiche, type BookForRelevance } from "./relevance";
+import { inferGenreFromBooks, generateFriendlyGenreLabelFromInferred } from "./genreInference";
 
 
 // -----------------------------
@@ -1349,6 +1350,36 @@ async function fetchAmazonBooks(
           }
         }
 
+        // Extract Amazon category paths from bestsellers_rank (full paths like "Books > Self-Help > ...")
+        const amazonCategoryPaths: string[] = [];
+        let primaryAmazonPath: string | null = null;
+        
+        if (Array.isArray(r.bestsellers_rank)) {
+          for (const rankEntry of r.bestsellers_rank) {
+            if (rankEntry && typeof rankEntry.category === "string" && rankEntry.category.trim().length > 0) {
+              const catPath = rankEntry.category.trim();
+              // Prefer paths starting with "Books"
+              if (catPath.toLowerCase().startsWith("books")) {
+                amazonCategoryPaths.push(catPath);
+                // Set first Books path as primary
+                if (!primaryAmazonPath) {
+                  primaryAmazonPath = catPath;
+                }
+              } else {
+                amazonCategoryPaths.push(catPath);
+              }
+            }
+          }
+        } else if (r.bestsellers_rank && typeof (r.bestsellers_rank as RainforestRankEntry).category === "string") {
+          const catPath = (r.bestsellers_rank as RainforestRankEntry).category!.trim();
+          if (catPath.length > 0) {
+            amazonCategoryPaths.push(catPath);
+            if (catPath.toLowerCase().startsWith("books")) {
+              primaryAmazonPath = catPath;
+            }
+          }
+        }
+
         const base: NormalizedBook = {
           title: r.title || "Untitled",
           asin: r.asin || null,
@@ -1376,6 +1407,8 @@ async function fetchAmazonBooks(
           rank: null,
           isRelevant: true,
           rawCategories,
+          amazonCategoryPaths,
+          primaryAmazonPath,
           coverColor: null,
         };
 
@@ -2686,8 +2719,22 @@ export async function registerRoutes(
         // Market stats
         const analysis = computeMarketSnapshot(workingBooks, genre);
 
-        // Genre normalization & label
-        const friendlyGenreLabel = generateFriendlyGenreLabel(
+        // Infer genre from Amazon category data
+        const inferredGenre = inferGenreFromBooks(workingBooks, genre.category);
+        const inferredGenreLabel = generateFriendlyGenreLabelFromInferred(inferredGenre);
+        
+        console.log("=== GENRE INFERENCE DEBUG ===");
+        console.log("Inferred genre:", {
+          category: inferredGenre.category,
+          shelf: inferredGenre.shelf,
+          subgenre: inferredGenre.subgenre,
+          microgenre: inferredGenre.microgenre,
+          primaryPath: inferredGenre.amazonPrimaryPath,
+          alternatePaths: inferredGenre.amazonAlternatePaths,
+        });
+
+        // Use inferred genre for display, but keep old label generation as fallback
+        const friendlyGenreLabel = inferredGenreLabel || generateFriendlyGenreLabel(
           searchTerm,
           genre,
           idea
@@ -2695,8 +2742,14 @@ export async function registerRoutes(
 
         const normalizedGenre = {
           category: genre.category,
-          subtype: genre.subtype || "general",
+          subtype: inferredGenre.subgenre || genre.subtype || "general",
           label: friendlyGenreLabel,
+          // New extended genre fields
+          shelf: inferredGenre.shelf,
+          subgenre: inferredGenre.subgenre,
+          microgenre: inferredGenre.microgenre,
+          amazonPrimaryPath: inferredGenre.amazonPrimaryPath,
+          amazonAlternatePaths: inferredGenre.amazonAlternatePaths,
         };
 
         // Deep analysis

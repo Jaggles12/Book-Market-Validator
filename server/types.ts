@@ -56,6 +56,20 @@ export interface NormalizedBook {
   rawCategories?: string[];
   audienceHint?: "kids" | "teens" | "adult" | "mixed" | "unsure";
 
+  // Amazon category paths (full human-readable paths)
+  amazonCategoryPaths?: string[];
+  primaryAmazonPath?: string | null;
+
   // Extras
   coverColor?: string | null;
+}
+
+// Inferred genre from Amazon category analysis
+export interface InferredGenre {
+  category: "fiction" | "nonfiction";
+  shelf: string;
+  subgenre: string;
+  microgenre: string | null;
+  amazonPrimaryPath: string | null;
+  amazonAlternatePaths: string[];
 }
