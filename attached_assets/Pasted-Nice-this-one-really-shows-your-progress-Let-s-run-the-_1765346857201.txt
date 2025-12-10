@@ -1,0 +1,351 @@
+Nice, this one really shows your progress. Let’s run the full audit.
+
+A) NICHE DETECTION QUALITY
+
+Idea:
+
+The Widow’s List: A Southern Small-Town Psychological Thriller About a Grieving Wife Who Finds Her Husband’s Secret Kill List
+
+Extracted niche / search term:
+
+"southern small-town psychological thriller"
+
+What’s working:
+
+The extracted phrase is semantically spot on: it preserves Southern, small-town, psychological thriller.
+
+It’s clearly fiction → psychological thriller / domestic suspense / Southern Gothic.
+
+The Rainforest search returns 18 books and gives you at least one very on-brand adjacent comp:
+
+That Last Carolina Summer: A Gripping Southern Tale of Sisterhood, Secrets, and the Haunting Power of the Past — by Karen White, strong Southern emotional suspense comp.
+
+Where it’s shaky:
+
+As an exact Amazon search term, "southern small-town psychological thriller" is a bit over-specified and unnatural.
+Readers are more likely to search:
+
+“southern psychological thriller”
+
+“southern gothic thriller”
+
+“small town psychological thriller”
+
+Your semantic scores confirm the phrase isn’t mapping cleanly:
+
+totalBooks: 18
+
+coreBooks: 0
+
+adjacentBooks: 1
+
+outOfNicheBooks: 17
+
+Average score ~0.21, max 0.51 — your own model is saying “we’re not getting a tight cluster.”
+
+Takeaway (A):
+
+Concept detection: Excellent.
+
+Keyword behavior: Reasonable first attempt, but you should fall back to simpler / more common variants when the marketSignal is sparse:
+
+If coreBooks === 0 and adjacentBooks <= 2, auto-try:
+
+“southern psychological thriller”
+
+if still sparse → “southern thriller” + filter by psychological/domestic signals.
+
+B) AMAZON DATA QUALITY
+
+You’ve made real progress here.
+
+What the data is telling you:
+
+Normalization:
+
+totalBooks: 18 normalized
+
+5 with enriched BSR and author info
+
+Relevance filter:
+
+coreBooks: 0
+
+adjacentBooks: 1
+
+usedForStats: 0
+
+Adjacent comp surfaced to the user:
+
+That Last Carolina Summer
+
+Rank: 39,529 in Books
+
+Rating: 4.6
+
+Reviews: 1,855
+
+Price: 17.41
+
+Stats objects:
+
+stats:
+
+avgPrice: 17.41
+
+avgRating: 0
+
+competitionLevel: Low
+
+demandLevel: Low
+
+coreStats:
+
+All zeros / nulls (no core books).
+
+adjacentStats:
+
+totalBooks: 1
+
+avgRating: 4.6
+
+avgReviews: 1855
+
+bsrBuckets.strong: 1
+
+premiumBookShare: 1
+
+marketSignal:
+
+signalStrength: "sparse"
+
+explanation: "Very limited data (1 books). This niche appears untested on Amazon."
+
+What’s good:
+
+You now separate core vs adjacent stats and explicitly report a marketSignal object. This is a big step forward from the previous run.
+
+The adjacentStats accurately describe that Karen White book as a strong performer.
+
+The marketSignal explanation (“very limited data”) is more honest and conservative than “no demand.”
+
+What’s still broken / confusing:
+
+stats.avgRating = 0 even though the only surfaced book has 4.6 stars.
+
+detailedStats.totalBooks = 0 while adjacentStats.totalBooks = 1 and the UI shows that 1 book.
+
+If your UI is summarizing “avg rating: 0, low demand, low competition” next to a strong, well-reviewed adjacent book, that’s going to confuse and erode trust.
+
+Fix:
+
+Either remove stats / detailedStats, or define them clearly:
+
+stats = core-only metrics; in that case, label them “Direct comps” and show “0 direct comps.”
+
+Always present adjacentStats in the same surface:
+
+“Direct comps: none found.”
+
+“Closest adjacent comps (1): avg rating 4.6, strong BSR, premium price.”
+
+C) SALES LEADERS QUALITY
+
+salesLeaders: [] – still empty.
+
+Given your logic:
+
+No core books ⇒ no salesLeaders.
+
+From a consultant / mid-career author perspective, that’s defensible but sub-optimal:
+
+You have an adjacent book with:
+
+Strong rank (39k in Books)
+
+High review count (1,855)
+
+To a human, that is obviously a “sales leader” in the closest neighboring niche.
+
+Recommendation:
+
+Introduce adjacentSalesLeaders when coreBooks === 0 but adjacentBooks > 0:
+
+“Closest Sales Leader in Adjacent Niche”
+
+Show top 3 by BSR from adjacentBooks, clearly labeled as such.
+
+That will make the output feel less like “broken feature” and more like “careful, but still helpful.”
+
+D) BOOK BLUEPRINT QUALITY
+
+This blueprint is very strong and exactly in-genre.
+
+Strengths:
+
+Working title + subtitle:
+“The Widow’s List: A Southern Small-Town Psychological Thriller” — totally shelf-ready for KU / thriller readers.
+
+Logline + core promise: Clear, high-concept, and emotionally charged.
+
+Structure:
+
+Three acts exactly how a thriller dev editor would outline them:
+
+Act I: Funeral, discovery, doubt.
+
+Act II: Investigation, town secrets, escalating danger.
+
+Act III: Confrontation, reveal, emotional resolution.
+
+Chapters with clear purpose and notes — this is genuinely useful to write from.
+
+Five-beat structure: Clean and thriller-appropriate.
+
+Voice & style notes: Lyrical yet taut, unreliable narrator, Southern Gothic – very on-brand.
+
+Comparable titles: Good mix: The Wife Upstairs, The Last House on Needless Street, The Silent Patient, etc.
+
+Next steps: Highly actionable: character profile, plot beats, folklore research, red herrings, comp reading, schedule.
+
+Minor risks / caveats:
+
+The blueprint assumes there’s real market whitespace for “Southern small-town psych thriller” in exactly the way described.
+Your own marketSignal says the data is sparse, yet some of the “formatGaps” statements are absolute:
+
+“Few psychological thrillers set in authentic small Southern towns”
+
+“Scarcity of dual-timeline or multi-perspective formats in this niche”
+
+Given how broad thriller output is, those claims are more creative positioning than data-proven truth.
+
+Net (D):
+
+Coherent: ✅
+
+Genre-appropriate: ✅
+
+Market-aware (in a general sense): ✅
+
+Actionable: ✅
+
+Overstating empirical whitespace: ⚠️ a bit.
+
+E) VERDICT + REASONING QUALITY
+
+Current verdict:
+
+verdict: "YELLOW"
+
+verdictReason: "No relevant books found — this niche may be untested or use different terminology on Amazon."
+
+Compared to the nonfiction run, this is a real improvement:
+
+You’ve moved from a blunt RED (“demand appears very low”) to a cautious YELLOW.
+
+You acknowledge either untested niche or terminology mismatch, which is a more honest read of sparse data.
+
+But the opening sentence is still inaccurate:
+
+“No relevant books found” is not true:
+
+You did find one solid adjacent comp and you know it (adjacentStats.totalBooks = 1).
+
+A more truthful version might be:
+
+“No direct comps found for this exact keyword. We found 1 closely adjacent Southern novel with strong performance, suggesting the concept may fit into a broader Southern thriller / domestic suspense space.”
+
+How it lands by persona:
+
+First-time author:
+YELLOW plus “untested niche” could actually be motivating (“maybe I’m early”) — but the “no relevant books found” line undercuts confidence.
+
+Mid-career thriller writer / consultant:
+They’ll see the strong adjacent comp and immediately question the wording. They’ll likely think:
+
+“So it’s clearly not that no relevant books exist; it’s that your semantic threshold is very strict or the query is odd.”
+
+Verdict logic upgrade:
+
+Use your own marketSignal object to drive copy:
+
+If coreBookCount === 0 and adjacentBookCount >= 1:
+
+“We didn’t find direct comps for this exact phrase, but we did find [X] adjacent titles with solid performance. This suggests your concept is adjacent to a proven space (e.g., Southern emotional suspense) but not an established sub-keyword yet.”
+
+Right now, the verdict is directionally better than last time, but the leading sentence is still sloppy enough to ding trust.
+
+F) OVERALL USER EXPERIENCE
+
+What’s working exceptionally well:
+
+Deep analysis + blueprint: Again, this is your superpower. For a fiction author, this output is gold as a planning document.
+
+Adjacency awareness: You now have coreStats, adjacentStats, and marketSignal. This is a big structural improvement.
+
+Category suggestions:
+
+Mystery, Thriller & Suspense > Psychological Thrillers
+
+Southern Fiction
+
+Women’s Fiction > Domestic
+That’s exactly where this book belongs.
+
+What’s mediocre or inconsistent:
+
+Genre label still stuck at “General Fiction” despite your own suggested categories being thriller-specific.
+
+This feels amateurish to a pro: if you can derive the thriller category, surface that as the main label.
+
+stats / detailedStats vs adjacentStats:
+
+Having three overlapping stat objects is cognitively heavy. If the UI only surfaces one, authors will see weird zeros instead of meaningful adjacent signals.
+
+What’s broken or misleading:
+
+The phrase “No relevant books found” in the verdict contradicts:
+
+Books list (1 adjacent comp).
+
+adjacentStats.totalBooks = 1.
+
+avgRating = 0 in stats while the visible book has 4.6 stars. This looks like either a bug or sloppy math.
+
+Sales leaders still empty even though the adjacent comp is clearly functioning as a “leader” in a related niche.
+
+Specific upgrades to feel premium:
+
+Promote adjacentStats to first-class citizens in the UI whenever coreStats are empty.
+
+Rewrite verdict copy using marketSignal instead of a hardcoded phrase.
+
+Fix top-level stats or relabel them as “Direct Comp Stats” with clear “0 books” messaging.
+
+Upgrade friendlyGenreLabel to something like “Psychological Thriller (Southern / Small-Town)” when your analysis suggests that.
+
+G) FINAL SCORE (1–10)
+
+From the POV of a thriller author + professional consultant:
+
+Overall accuracy: 7 / 10
+
+Better than the nonfiction run: adjacency recognition, marketSignal, and YELLOW verdict are improvements. Still some inaccurate phrasing and stats issues.
+
+Actionability for writers: 9 / 10
+
+Blueprint, structure, character and atmosphere guidance, and next steps are genuinely useful.
+
+Market relevance: 7 / 10
+
+Concept and comps in the right general zone (Southern, psych thriller, domestic suspense), but keyword and whitespace claims could be more tightly tied to real data.
+
+Degree of trustworthiness: 6 / 10
+
+The addition of core vs adjacent stats and marketSignal moves you up from ~4 to ~6.
+
+Remaining inconsistencies (0 ratings, “no relevant books”) keep it from feeling fully reliable.
+
+One-paragraph summary
+
+On this fiction test, your Book Market Validator feels like a seriously helpful story development partner wrapped in a still-maturing market analyst. It nails the concept, outlines a compelling Southern psychological thriller with professional-grade structure and positioning, and now smartly distinguishes between direct and adjacent comps with a candid “sparse data” warning. But the surface-level stats and verdict copy still undercut trust by saying “no relevant books found” and showing zero ratings while surfacing a strong adjacent comp, and your genre label lags behind your own category insights. If you tighten the link between marketSignal and verdict language, promote adjacentStats when core comps are missing, fix the global stats inconsistencies, and upgrade the friendly genre label to “Psychological Thriller (Southern / Small-Town),” the tool will feel much closer to a premium, pro-grade market validator for fiction.
