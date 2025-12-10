@@ -1,0 +1,167 @@
+You’re working in a codebase for a “Book Market Validator” style app that analyzes Amazon search results and infers:
+
+- niche + search term
+- canonicalGenre (from LLM)
+- Amazon category paths
+- a final inferred genre object:
+  - category
+  - shelf
+  - subgenre / microgenre
+  - amazonPrimaryPath
+- category purity, core/adjacent buckets, etc.
+
+We’ve already fixed **niche detection** so that for fiction romance prompts we correctly get:
+
+  canonicalGenre: "Contemporary Romance"
+  expectedGenre: "Romance"
+  canonical anchor validCategories: Romance, Contemporary Romance, Historical Romance, Romantic Comedy
+  invalidCategories: Self-Help, Business, Nonfiction
+
+However, the **genre inference and category purity logic are still wrong**.
+
+### CURRENT PROBLEM (REAL LOG EXAMPLE)
+
+For this user prompt:
+
+> "I want to write a heartfelt romance about a big-city woman who moves to a small town, butts heads with a grumpy local carpenter, and slowly falls in love as they help save the town’s bookstore"
+
+The pipeline does this:
+
+1. Niche extraction:
+   - searchTerm: "small town contemporary romance"
+   - normalized primarySearch: "small town romance"
+   - canonicalGenre: "Contemporary Romance"
+   - expectedGenre: "Romance"
+
+2. Amazon path examples for core competitors (shortened):
+   - "Kindle Store > Kindle eBooks > Literature & Fiction > Contemporary Fiction > Romance"
+   - "Books > Literature & Fiction > Genre Fiction > Small Town & Rural"
+   - "Kindle Store > Kindle eBooks > Religion & Spirituality > Christian Books & Bibles > Christian Fiction > Romance > Mystery & Suspense"
+
+3. Final inferred genre (WRONG):
+
+   {
+     category: "fiction",
+     shelf: "Literary Fiction",
+     subgenre: "Contemporary Fiction",
+     microgenre: null,
+     amazonPrimaryPath: "Kindle Store > Kindle eBooks > Literature & Fiction > Contemporary Fiction > Romance",
+     alternatePaths: [
+       "Kindle Store > Kindle eBooks > Religion & Spirituality > Christian Books & Bibles > Christian Fiction > Romance > Mystery & Suspense",
+       "Kindle Store > Kindle eBooks > Religion & Spirituality > Spirituality > Inspirational > Death & Grief",
+       "Books > Literature & Fiction > Genre Fiction > Small Town & Rural"
+     ]
+   }
+
+So despite a correct canonicalGenre = "Contemporary Romance" and clear “Romance” in the Amazon paths, our engine is still calling this **Literary / Contemporary Fiction** and using that as the friendlyGenreLabel.
+
+Also, we see this contradictory debug:
+
+- early:  categoryPurity: "0.000"
+- later (after path filtering): purity score 1.00 and “Genre alignment OK”
+
+There is clearly more than one purity / genre-calculation step, and they are not aligned.
+
+### WHAT WE WANT INSTEAD
+
+We are building a generic engine that works across all genres. The romance example is just one clear failure case.
+
+We want to refactor the genre inference so that:
+
+1. **CanonicalGenre + expectedGenre act as the primary signal for genre family.**
+   - Example families: Romance, MysteryThriller, SciFiFantasy, Horror, LiteraryFiction, YoungAdult, Children/MiddleGrade, Nonfiction.
+
+2. **Amazon category paths are used to SUPPORT or refine that family, not override it with generic “Literature & Fiction > Contemporary Fiction” labels.**
+
+3. When a path contains both generic fiction labels AND a specific genre signal, the specific genre wins.
+
+   Concretely:
+   - If a path contains "Romance" anywhere, and canonicalGenre is in the Romance family, THEN:
+     - shelf should be "Romance"
+     - friendlyGenreLabel should be something like "Contemporary Romance" (coming from canonicalGenre or a Romance mapping)
+     - NOT "Literary Fiction" / "Contemporary Fiction".
+
+   - Similarly for other families in the future:
+     - "Mystery", "Thriller" → MysteryThriller
+     - "Science Fiction", "Fantasy" → SciFiFantasy
+     - "Horror" → Horror
+     - "Teen & Young Adult" → YoungAdult
+     - "Children's Books" → Children/MiddleGrade
+     - Only when there is NO specific family signal and paths are just "Literature & Fiction > Contemporary Fiction" should we fall back to "Literary Fiction".
+
+4. The existing top-level UI “fiction vs nonfiction” selection should remain as a **gate**, not a dictator of subgenre:
+   - If UI says `category: 'fiction'`, ignore nonfiction families like Self-Help, Business, Parenting.
+   - If UI says `category: 'nonfiction'`, ignore obviously fiction families like Romance, Mystery, SFF, Horror.
+   - Do NOT let a subtype like “general fiction” force the result into Literary Fiction if canonicalGenre + Amazon paths clearly say Romance, Mystery, etc.
+
+5. Category purity should be computed **against the chosen genre family**, not a mismatched “general fiction” baseline:
+   - For the example above, purity should be high (close to 1.0) for the Romance family.
+   - We should NOT ever see `categoryPurity: "0.000"` when all core books have romance-centric paths.
+
+### YOUR TASK
+
+1. **Locate the functions / modules responsible for:**
+   - Inferring the final genre object (category, shelf, subgenre, microgenre, amazonPrimaryPath).
+   - Calculating categoryPurity and domainAlignment.
+   These might be named something like `inferGenreFromPaths`, `classifyGenreFromCategories`, `computeCategoryPurity`, or similar.
+
+2. **Introduce a “genre family” layer** (it can be an enum or simple string union) with at least:
+   - Romance
+   - MysteryThriller
+   - SciFiFantasy
+   - Horror
+   - LiteraryFiction
+   - YoungAdult
+   - ChildrenMiddleGrade
+   - Nonfiction (subfamilies optional for now)
+
+3. Implement logic that:
+   - Maps canonicalGenre / expectedGenre to a genre family.
+   - Scores Amazon category paths into genre families via reusable pattern matching (e.g., contains "Romance", "Mystery", "Science Fiction", "Teen & Young Adult", etc.).
+   - Combines these signals:
+     - If canonicalGenre exists, use that family as the default.
+     - If Amazon paths strongly support that same family, keep it and raise confidence.
+     - If Amazon paths suggest a different family, only override if canonical is missing or extremely weak; otherwise, treat as mixed/adjacent but keep canonical family for primary classification.
+
+4. Update the logic that sets:
+   - `shelf` (e.g., "Romance" instead of "Literary Fiction")
+   - `friendlyGenreLabel` / `label` (e.g., "Contemporary Romance" instead of "Contemporary Fiction")
+   - `amazonPrimaryPath` and `amazonAlternatePaths` (these can stay, but classification should interpret them differently)
+
+5. Fix category purity so:
+   - It uses the chosen genre family as the baseline (e.g., Romance) for what counts as “pure” versus “drifted”.
+   - It does NOT return 0.000 when all core books are clearly in the primary family.
+
+### ACCEPTANCE CRITERIA (IMPORTANT)
+
+After your changes:
+
+1. For the example prompt above ("heartfelt romance… small town… grumpy carpenter… save the bookstore"):
+
+   - canonicalGenre remains "Contemporary Romance".
+   - Final genre should look more like:
+
+     {
+       category: "fiction",
+       shelf: "Romance",
+       subgenre: "Contemporary Romance",
+       microgenre: null or something Romance-specific,
+       friendlyGenreLabel: "Contemporary Romance",
+       amazonPrimaryPath: one of the Romance-flavored paths (e.g. a Contemporary Fiction > Romance or Small Town Romance path)
+     }
+
+   - categoryPurity for the core pool should be high and logically consistent with the debug output (no 0.000 vs 1.00 contradictions).
+
+2. This logic must be **genre-agnostic**:
+   - If we later analyze a “cozy mystery bakery” niche, “Mystery & Thrillers” should win over generic “Literature & Fiction > Contemporary Fiction.”
+   - If we analyze an “epic fantasy” niche, “Science Fiction & Fantasy” should win over generic fiction labels.
+   - If we analyze nonfiction (e.g., “personal finance for beginners”), the Nonfiction families should be used and Fiction paths ignored when UI category is set to nonfiction.
+
+3. Do NOT hardcode a special case for “Romance” only. Implement the generic genre-family + path-scoring pattern described above.
+
+4. Keep the existing structure of the output JSON intact (same keys etc.), just correct the values and underlying inference.
+
+Please show me:
+- Which files and functions you changed.
+- A short explanation of how canonicalGenre, genre family, and Amazon paths now work together.
+- A small set of unit tests or at least inline test cases (even if just comments) that demonstrate the Romance example and at least one non-Romance genre (e.g., a Mystery or Sci-Fi example).
