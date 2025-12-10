@@ -1,0 +1,87 @@
+What I want you to design a plan to do
+
+Create a new file server/validatorService.ts.
+
+In this file, define an exported function:
+
+export async function runBookMarketValidation(body: any, userId?: string) { ... }
+
+Move the entire existing /api/validate pipeline from server/routes.ts into this function as a verbatim copy:
+
+The body of runBookMarketValidation should be the same code that currently runs inside the /api/validate route handler (the full book market validation pipeline).
+
+Do not change any internal logic, helper calls, or variable names inside this pipeline; just wrap it.
+
+This new function should:
+
+Accept plain data (body, userId) rather than Request/Response objects.
+
+Return the same JSON object that the route currently sends to the client.
+
+Create a new file server/amazonClient.ts.
+
+Move all direct Amazon/Rainforest HTTP calls and response-parsing logic out of server/routes.ts into this file.
+
+This includes functions such as:
+
+fetchAmazonBooks(searchTerm: string)
+
+fetchProductBSR(asin: string)
+
+Any other helpers that:
+
+construct Rainforest URLs,
+
+call axios with the Rainforest endpoint,
+
+parse Rainforest-specific fields (e.g. search_results, product, bestsellers_rank, etc.).
+
+Preserve their behavior exactly; just move them and wire them up with proper imports/exports.
+
+These functions should still return the same internal types the rest of the app expects (e.g. normalized book objects, enrichment data, etc.).
+
+Slim down server/routes.ts.
+
+Import runBookMarketValidation from validatorService.ts.
+
+Update the /api/validate route so that:
+
+it extracts the necessary data from req.body and req.userId,
+
+calls runBookMarketValidation(body, userId),
+
+and res.json()s the result.
+
+Remove the old inline pipeline code from routes.ts that you moved into validatorService.ts.
+
+Remove the direct Rainforest/Amazon axios logic from routes.ts (now in amazonClient.ts), and update any remaining code in the validation pipeline to call the functions from amazonClient.ts instead.
+
+routes.ts should not directly import axios for Amazon/Rainforest anymore.
+
+Keep all existing helpers as-is.
+
+The new validatorService.ts should reuse the existing helpers from:
+
+audience.ts
+
+canonicalNiche.ts
+
+genreInference.ts
+
+keywordNormalizer.ts
+
+relevance.ts
+
+types.ts
+
+Do not move or duplicate these helpers; just import them where needed.
+
+Verify type safety and behavior.
+
+Ensure the TypeScript build still passes.
+
+Ensure /api/validate still returns the same structure expected by lib/api-validator.ts.
+
+If you must fix imports/exports to make things compile, do so carefully without altering logic.
+
+Please now generate a detailed plan for this refactor based on these constraints and the existing codebase. After that, I will run “Build” to implement the plan.
