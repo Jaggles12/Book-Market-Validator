@@ -2168,11 +2168,13 @@ function computeBucketStats(books: NormalizedBook[]): BucketStats {
   };
 
   // Filter to only include books with actual rating/review values (not null/undefined)
+  // Ratings: must be > 0 (0 means no rating)
+  // Reviews: can be 0 (meaning "no reviews yet" which is valid data)
   const validRatings = books.map((b) => b.rating).filter((r): r is number => typeof r === "number" && r > 0);
-  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r > 0);
+  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r >= 0);
   const pricesRaw = books.map((b) => b.price).filter((p): p is number => typeof p === "number" && p > 0);
 
-  // Return null (not 0) when no valid data - 0 is misleading
+  // Return null (not 0) when no valid data - missing data is different from zero
   const avgRating = validRatings.length > 0
     ? validRatings.reduce((sum, r) => sum + r, 0) / validRatings.length
     : null;
@@ -2389,9 +2391,10 @@ function computeMarketSnapshot(
   }
 
   // Only include books with actual ratings (not null/undefined/0) for avg calculation
-  // Note: reviews can be 0 (no reviews yet) so only filter out null/undefined for reviews
+  // Ratings: must be > 0 (0 means no rating data)
+  // Reviews: can be 0 (meaning "no reviews yet" which is valid data point)
   const validRatings = books.map((b) => b.rating).filter((r): r is number => typeof r === "number" && r > 0);
-  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r > 0);
+  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r >= 0);
 
   const pricesRaw = books
     .map((b) => b.price)
@@ -3392,14 +3395,21 @@ export async function registerRoutes(
         const enrichedCoreBooks = applyEnrichmentToBooks(currentCoreBooks, enrichmentMap);
         const enrichedAdjacentBooks = applyEnrichmentToBooks(currentAdjacentBooks, enrichmentMap);
         const enrichedDisplayBooks = [...enrichedCoreBooks, ...enrichedAdjacentBooks];
-        const enrichedWorkingBooks = enrichedCoreBooks;
+        
+        // UNIFIED POOL: Use core + adjacent for stats/sales leaders when core is sparse
+        // This ensures more robust statistics when the niche is narrow
+        const useUnifiedPool = enrichedCoreBooks.length < MIN_CORE_BOOKS;
+        const enrichedWorkingBooks = useUnifiedPool 
+          ? enrichedDisplayBooks  // Use core + adjacent together
+          : enrichedCoreBooks;    // Use only core when we have enough
 
         console.log("=== ENRICHMENT SUMMARY ===");
         const enrichedCount = enrichedDisplayBooks.filter(b => b.isEnriched).length;
         const withCategoryCount = enrichedDisplayBooks.filter(b => b.categoriesFlat).length;
         console.log(`Enriched ${enrichedCount}/${enrichedDisplayBooks.length} books, ${withCategoryCount} have category paths`);
+        console.log(`Using ${useUnifiedPool ? "UNIFIED (core+adjacent)" : "CORE-ONLY"} pool for stats (${enrichedWorkingBooks.length} books)`);
 
-        // Sales leaders from enriched core books
+        // Sales leaders from unified working set (prioritized by rank within the pool)
         const rankedCandidates = enrichedWorkingBooks
           .filter(
             (b) =>
@@ -3419,9 +3429,10 @@ export async function registerRoutes(
           rating: b.rating ?? null,
           reviews: b.reviews ?? null,
           price: b.price ?? null,
+          relevanceBucket: b.relevanceBucket ?? "unknown",
         }));
 
-        // Adjacent sales leaders when core is empty - show top performers from adjacent niche
+        // Secondary adjacent-only sales leaders for reference
         const adjacentRankedCandidates = enrichedAdjacentBooks
           .filter(
             (b) =>
@@ -3443,7 +3454,7 @@ export async function registerRoutes(
           price: b.price ?? null,
         }));
 
-        // Market stats - now with enriched core/adjacent separation
+        // Market stats - now using unified pool with enriched core/adjacent separation for reference
         const analysis = computeMarketSnapshot(enrichedWorkingBooks, genre, enrichedCoreBooks, enrichedAdjacentBooks);
 
         // Infer genre from enriched Amazon category data (use ALL enriched books for better clustering)
