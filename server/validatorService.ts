@@ -1669,7 +1669,8 @@ export async function runBookMarketValidation(body: any, userId?: string): Promi
 
   const analysis = computeMarketSnapshot(enrichedWorkingBooks, genre, enrichedCoreBooks, enrichedAdjacentBooks);
 
-  let inferredGenre = inferGenreFromBooks(enrichedDisplayBooks, genre.category, canonicalNiche);
+  // Pass canonicalGenre from normalizedTerms to enable genre family matching
+  let inferredGenre = inferGenreFromBooks(enrichedDisplayBooks, genre.category, canonicalNiche, normalizedTerms.canonicalGenre);
   const inferredGenreLabel = generateFriendlyGenreLabelFromInferred(inferredGenre);
   
   console.log("=== GENRE INFERENCE DEBUG ===");

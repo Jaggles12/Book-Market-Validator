@@ -9,6 +9,312 @@ interface CategoryClusterResult {
   sortedPaths: string[];
 }
 
+// =============================================================================
+// GENRE FAMILY SYSTEM
+// =============================================================================
+// Genre families group related genres into primary classification buckets.
+// This allows us to recognize that "Contemporary Romance" and paths containing
+// "Romance" belong to the same family, and should not be overridden by
+// generic "Literature & Fiction > Contemporary Fiction" labels.
+
+export type GenreFamily = 
+  | "Romance"
+  | "MysteryThriller"
+  | "SciFiFantasy"
+  | "Horror"
+  | "LiteraryFiction"
+  | "YoungAdult"
+  | "ChildrenMiddleGrade"
+  | "Nonfiction";
+
+// Mapping from canonical genre strings to genre families
+const CANONICAL_TO_FAMILY: Record<string, GenreFamily> = {
+  // Romance family
+  "romance": "Romance",
+  "contemporary romance": "Romance",
+  "historical romance": "Romance",
+  "romantic comedy": "Romance",
+  "paranormal romance": "Romance",
+  "small town romance": "Romance",
+  "small town contemporary romance": "Romance",
+  "sweet romance": "Romance",
+  "clean romance": "Romance",
+  "rom-com": "Romance",
+  "romantic suspense": "Romance",
+  "regency romance": "Romance",
+  "billionaire romance": "Romance",
+  "western romance": "Romance",
+  "holiday romance": "Romance",
+  "second chance romance": "Romance",
+  "enemies to lovers": "Romance",
+  "friends to lovers": "Romance",
+  "love story": "Romance",
+  
+  // Mystery/Thriller family
+  "mystery": "MysteryThriller",
+  "thriller": "MysteryThriller",
+  "suspense": "MysteryThriller",
+  "cozy mystery": "MysteryThriller",
+  "detective fiction": "MysteryThriller",
+  "crime fiction": "MysteryThriller",
+  "psychological thriller": "MysteryThriller",
+  "legal thriller": "MysteryThriller",
+  "police procedural": "MysteryThriller",
+  "noir": "MysteryThriller",
+  "whodunit": "MysteryThriller",
+  "murder mystery": "MysteryThriller",
+  
+  // SciFi/Fantasy family
+  "science fiction": "SciFiFantasy",
+  "sci-fi": "SciFiFantasy",
+  "fantasy": "SciFiFantasy",
+  "epic fantasy": "SciFiFantasy",
+  "urban fantasy": "SciFiFantasy",
+  "space opera": "SciFiFantasy",
+  "dystopian": "SciFiFantasy",
+  "post-apocalyptic": "SciFiFantasy",
+  "cyberpunk": "SciFiFantasy",
+  "steampunk": "SciFiFantasy",
+  "paranormal": "SciFiFantasy",
+  "supernatural": "SciFiFantasy",
+  "litrpg": "SciFiFantasy",
+  "gamelit": "SciFiFantasy",
+  
+  // Horror family
+  "horror": "Horror",
+  "dark fiction": "Horror",
+  "psychological horror": "Horror",
+  "supernatural horror": "Horror",
+  "gothic": "Horror",
+  
+  // Young Adult family
+  "young adult": "YoungAdult",
+  "ya": "YoungAdult",
+  "teen fiction": "YoungAdult",
+  "new adult": "YoungAdult",
+  
+  // Children's/Middle Grade family
+  "children's": "ChildrenMiddleGrade",
+  "middle grade": "ChildrenMiddleGrade",
+  "picture book": "ChildrenMiddleGrade",
+  "kids": "ChildrenMiddleGrade",
+  
+  // Literary Fiction (catch-all for general fiction)
+  "literary fiction": "LiteraryFiction",
+  "contemporary fiction": "LiteraryFiction",
+  "general fiction": "LiteraryFiction",
+  "women's fiction": "LiteraryFiction",
+  "historical fiction": "LiteraryFiction",
+  "book club fiction": "LiteraryFiction",
+};
+
+// Path patterns that indicate genre family membership
+// These are checked against Amazon category paths to detect family signals
+const FAMILY_PATH_PATTERNS: Record<GenreFamily, string[]> = {
+  "Romance": [
+    "romance",
+    "romantic",
+    "love story",
+    "love & romance",
+    "romantic comedy",
+    "contemporary romance",
+    "historical romance",
+  ],
+  "MysteryThriller": [
+    "mystery",
+    "thriller",
+    "suspense",
+    "detective",
+    "crime",
+    "whodunit",
+    "noir",
+    "police procedural",
+  ],
+  "SciFiFantasy": [
+    "science fiction",
+    "sci-fi",
+    "fantasy",
+    "space opera",
+    "dystopian",
+    "supernatural",
+    "paranormal",
+    "magic",
+    "dragons",
+  ],
+  "Horror": [
+    "horror",
+    "dark fiction",
+    "occult",
+    "supernatural horror",
+  ],
+  "YoungAdult": [
+    "teen & young adult",
+    "young adult",
+    "ya fiction",
+    "teen fiction",
+  ],
+  "ChildrenMiddleGrade": [
+    "children's books",
+    "children's ebooks",
+    "kids' books",
+    "picture books",
+    "middle grade",
+  ],
+  "LiteraryFiction": [
+    "literary fiction",
+    "contemporary fiction",
+    "general literature",
+    "literature & fiction",
+  ],
+  "Nonfiction": [
+    "self-help",
+    "business",
+    "health",
+    "cooking",
+    "history",
+    "biography",
+    "science",
+    "reference",
+    "education",
+    "religion",
+    "spirituality",
+    "parenting",
+    "relationships",
+  ],
+};
+
+// Shelf labels for each genre family
+const FAMILY_SHELF_LABELS: Record<GenreFamily, string> = {
+  "Romance": "Romance",
+  "MysteryThriller": "Mystery & Thriller",
+  "SciFiFantasy": "Science Fiction & Fantasy",
+  "Horror": "Horror",
+  "LiteraryFiction": "Literary Fiction",
+  "YoungAdult": "Young Adult",
+  "ChildrenMiddleGrade": "Children's",
+  "Nonfiction": "Nonfiction",
+};
+
+/**
+ * Map a canonical genre string to a genre family
+ */
+export function mapCanonicalToFamily(canonicalGenre: string | undefined): GenreFamily | null {
+  if (!canonicalGenre) return null;
+  
+  const lower = canonicalGenre.toLowerCase().trim();
+  
+  // Direct match
+  if (CANONICAL_TO_FAMILY[lower]) {
+    return CANONICAL_TO_FAMILY[lower];
+  }
+  
+  // Partial match - check if any key is contained in the canonical genre
+  for (const [key, family] of Object.entries(CANONICAL_TO_FAMILY)) {
+    if (lower.includes(key) || key.includes(lower)) {
+      return family;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Score an Amazon category path against genre families
+ * Returns a map of family -> score (higher = more signals for that family)
+ */
+export function scorePathByFamilies(path: string): Record<GenreFamily, number> {
+  const lower = path.toLowerCase();
+  const scores: Record<GenreFamily, number> = {
+    "Romance": 0,
+    "MysteryThriller": 0,
+    "SciFiFantasy": 0,
+    "Horror": 0,
+    "LiteraryFiction": 0,
+    "YoungAdult": 0,
+    "ChildrenMiddleGrade": 0,
+    "Nonfiction": 0,
+  };
+  
+  for (const [family, patterns] of Object.entries(FAMILY_PATH_PATTERNS)) {
+    for (const pattern of patterns) {
+      if (lower.includes(pattern.toLowerCase())) {
+        // Give higher weight to more specific patterns
+        const weight = pattern.length > 10 ? 2 : 1;
+        scores[family as GenreFamily] += weight;
+      }
+    }
+  }
+  
+  return scores;
+}
+
+/**
+ * Find the best genre family match from a list of Amazon paths
+ * Returns the family with the highest aggregate score
+ */
+export function findDominantFamilyFromPaths(paths: string[]): { family: GenreFamily | null; score: number; scores: Record<GenreFamily, number> } {
+  const aggregateScores: Record<GenreFamily, number> = {
+    "Romance": 0,
+    "MysteryThriller": 0,
+    "SciFiFantasy": 0,
+    "Horror": 0,
+    "LiteraryFiction": 0,
+    "YoungAdult": 0,
+    "ChildrenMiddleGrade": 0,
+    "Nonfiction": 0,
+  };
+  
+  for (const path of paths) {
+    const pathScores = scorePathByFamilies(path);
+    for (const [family, score] of Object.entries(pathScores)) {
+      aggregateScores[family as GenreFamily] += score;
+    }
+  }
+  
+  // Find the highest-scoring family (excluding LiteraryFiction as a tie-breaker since it's generic)
+  let bestFamily: GenreFamily | null = null;
+  let bestScore = 0;
+  
+  for (const [family, score] of Object.entries(aggregateScores)) {
+    // Prefer specific families over LiteraryFiction
+    if (score > bestScore || (score === bestScore && family !== "LiteraryFiction" && bestFamily === "LiteraryFiction")) {
+      bestFamily = family as GenreFamily;
+      bestScore = score;
+    }
+  }
+  
+  return { family: bestFamily, score: bestScore, scores: aggregateScores };
+}
+
+/**
+ * Extract the most relevant subgenre from a path for a given family
+ * Example: For Romance family and path "Literature & Fiction > Contemporary Fiction > Romance"
+ * Returns "Contemporary Romance" instead of "Contemporary Fiction"
+ */
+function extractSubgenreForFamily(path: string, family: GenreFamily, canonicalGenre?: string): string {
+  const lower = path.toLowerCase();
+  const segments = path.split(/\s*>\s*/).map(s => s.trim()).filter(Boolean);
+  
+  // If we have a canonical genre, prefer it as the subgenre label
+  if (canonicalGenre) {
+    return canonicalGenre;
+  }
+  
+  // Look for family-specific segments in reverse order (most specific first)
+  const patterns = FAMILY_PATH_PATTERNS[family] || [];
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const segmentLower = segments[i].toLowerCase();
+    for (const pattern of patterns) {
+      if (segmentLower.includes(pattern.toLowerCase())) {
+        return segments[i]; // Return the actual segment text (properly cased)
+      }
+    }
+  }
+  
+  // Fallback: return the last segment
+  return segments[segments.length - 1] || FAMILY_SHELF_LABELS[family];
+}
+
 // Categories that should NEVER become primary genre unless user explicitly requested them
 // ONLY exact segment matches are blocked - "Black & African American" blocks that exact segment,
 // but NOT "Multicultural Families" or other legitimate compound categories
@@ -200,16 +506,24 @@ function parsePathToGenre(path: string): { shelf: string; subgenre: string } {
 
 /**
  * Infer genre from a collection of books using Amazon category data
- * The userCategory (fiction/nonfiction) is always respected and never overridden
+ * 
+ * NEW GENRE FAMILY APPROACH:
+ * 1. canonicalGenre from niche detection is the PRIMARY signal for genre family
+ * 2. Amazon category paths SUPPORT or refine that family, but don't override it
+ * 3. When a path contains both generic labels ("Literature & Fiction") AND a specific
+ *    family signal ("Romance"), the specific family wins
+ * 4. Shelf is set to the family's standard label, NOT extracted from the path
  * 
  * @param books - Normalized books with category data
  * @param userCategory - User's selected category (never overridden)
  * @param canonicalNiche - Optional canonical niche anchor to prevent drift
+ * @param canonicalGenre - Optional canonical genre from LLM normalization (e.g., "Contemporary Romance")
  */
 export function inferGenreFromBooks(
   books: NormalizedBook[],
   userCategory: "fiction" | "nonfiction",
-  canonicalNiche?: CanonicalNiche
+  canonicalNiche?: CanonicalNiche,
+  canonicalGenre?: string
 ): InferredGenre {
   // Cluster and rank category paths
   const { sortedPaths } = inferAmazonCategoryCluster(books);
@@ -217,66 +531,119 @@ export function inferGenreFromBooks(
   // Filter paths to remove blocked subcategories (race/ethnicity, Children's for nonfiction, etc.)
   const validPaths = filterValidPrimaryPaths(sortedPaths, userCategory, canonicalNiche);
   
-  console.log(`=== GENRE PATH FILTERING ===`);
+  console.log(`=== GENRE FAMILY INFERENCE ===`);
   console.log(`Total paths: ${sortedPaths.length}`);
   console.log(`Valid primary paths: ${validPaths.length}`);
   if (validPaths.length < sortedPaths.length) {
     console.log(`Blocked paths: ${sortedPaths.length - validPaths.length}`);
   }
   
-  // Find primary path from filtered valid paths
-  const amazonPrimaryPath = validPaths.length > 0 ? validPaths[0] : null;
+  // Step 1: Determine canonical family from canonicalGenre or canonicalNiche.expectedGenre
+  const canonicalLabel = canonicalGenre || canonicalNiche?.expectedGenre;
+  const canonicalFamily = mapCanonicalToFamily(canonicalLabel);
   
-  // Get alternate paths - include both valid and original for reference
+  console.log(`Canonical genre: "${canonicalLabel}" → Family: ${canonicalFamily || "none"}`);
+  
+  // Step 2: Score Amazon paths by genre family
+  const pathFamilyResult = findDominantFamilyFromPaths(validPaths);
+  
+  console.log(`Amazon path family scores:`, pathFamilyResult.scores);
+  console.log(`Dominant path family: ${pathFamilyResult.family} (score: ${pathFamilyResult.score})`);
+  
+  // Step 3: Determine final family - canonical takes precedence if supported by paths
+  let finalFamily: GenreFamily;
+  let familyConfidence: "high" | "medium" | "low" = "low";
+  
+  if (canonicalFamily) {
+    // Canonical family exists - check if Amazon paths support it
+    const canonicalFamilyScore = pathFamilyResult.scores[canonicalFamily];
+    const pathDominantScore = pathFamilyResult.score;
+    
+    if (canonicalFamilyScore > 0) {
+      // Amazon paths support the canonical family - use it with high confidence
+      finalFamily = canonicalFamily;
+      familyConfidence = canonicalFamilyScore >= pathDominantScore ? "high" : "medium";
+      console.log(`✅ Using canonical family "${canonicalFamily}" (supported by paths, score: ${canonicalFamilyScore})`);
+    } else if (pathFamilyResult.family && pathFamilyResult.family !== "LiteraryFiction" && pathFamilyResult.score > canonicalFamilyScore) {
+      // Amazon paths strongly suggest a different family - this might indicate drift
+      // Only override canonical if the alternative is a specific family (not LiteraryFiction)
+      // AND has significant support
+      if (pathFamilyResult.score >= 3) {
+        finalFamily = pathFamilyResult.family;
+        familyConfidence = "medium";
+        console.log(`⚠️ Path family "${pathFamilyResult.family}" overrides canonical "${canonicalFamily}" (strong path signal: ${pathFamilyResult.score})`);
+      } else {
+        // Weak path signal - stick with canonical
+        finalFamily = canonicalFamily;
+        familyConfidence = "low";
+        console.log(`⚠️ Using canonical family "${canonicalFamily}" despite weak path support (canonical is stronger signal)`);
+      }
+    } else {
+      // No strong path signal - use canonical
+      finalFamily = canonicalFamily;
+      familyConfidence = "medium";
+      console.log(`✅ Using canonical family "${canonicalFamily}" (no conflicting path signal)`);
+    }
+  } else if (pathFamilyResult.family) {
+    // No canonical family - use path-derived family
+    finalFamily = pathFamilyResult.family;
+    familyConfidence = pathFamilyResult.score >= 3 ? "medium" : "low";
+    console.log(`📚 Using path-derived family "${finalFamily}" (no canonical genre)`);
+  } else {
+    // No signals at all - default based on userCategory
+    finalFamily = userCategory === "fiction" ? "LiteraryFiction" : "Nonfiction";
+    familyConfidence = "low";
+    console.log(`⚠️ Defaulting to "${finalFamily}" (no genre signals)`);
+  }
+  
+  // Step 4: Set shelf based on final family (NOT from path parsing)
+  const shelf = FAMILY_SHELF_LABELS[finalFamily];
+  
+  // Step 5: Set subgenre - prefer canonicalGenre, then extract from paths
+  let subgenre: string;
+  if (canonicalLabel && mapCanonicalToFamily(canonicalLabel) === finalFamily) {
+    // Use canonical genre as subgenre if it matches the family
+    subgenre = canonicalLabel;
+  } else {
+    // Extract subgenre from the best path for this family
+    const primaryPath = validPaths.length > 0 ? validPaths[0] : null;
+    subgenre = primaryPath 
+      ? extractSubgenreForFamily(primaryPath, finalFamily, canonicalLabel)
+      : shelf;
+  }
+  
+  // Step 6: Try to extract microgenre from paths
+  let microgenre: string | null = null;
+  const primaryPath = validPaths.length > 0 ? validPaths[0] : null;
+  if (primaryPath) {
+    const mapping = findGenreMapping(primaryPath, userCategory);
+    if (mapping?.microgenre) {
+      microgenre = mapping.microgenre;
+    }
+  }
+  
+  // Step 7: Select best primary path for the family
+  // Prefer paths that contain family-specific signals
+  let amazonPrimaryPath: string | null = null;
+  const familyPatterns = FAMILY_PATH_PATTERNS[finalFamily] || [];
+  
+  for (const path of validPaths) {
+    const lower = path.toLowerCase();
+    const hasFamilySignal = familyPatterns.some(p => lower.includes(p.toLowerCase()));
+    if (hasFamilySignal) {
+      amazonPrimaryPath = path;
+      break;
+    }
+  }
+  
+  // Fallback to first valid path if no family-specific path found
+  if (!amazonPrimaryPath && validPaths.length > 0) {
+    amazonPrimaryPath = validPaths[0];
+  }
+  
   const amazonAlternatePaths = validPaths.slice(1, 4);
   
-  // Default fallback - use canonical niche anchor if available
-  let shelf = canonicalNiche?.expectedGenre || (userCategory === "fiction" ? "General Fiction" : "General Nonfiction");
-  let subgenre = shelf;
-  let microgenre: string | null = null;
-  
-  // Try to find a mapping for the primary path
-  if (amazonPrimaryPath) {
-    const mapping = findGenreMapping(amazonPrimaryPath, userCategory);
-    
-    if (mapping) {
-      shelf = mapping.shelf;
-      subgenre = mapping.subgenre;
-      microgenre = mapping.microgenre;
-    } else {
-      // Fallback: parse the path directly
-      const parsed = parsePathToGenre(amazonPrimaryPath);
-      shelf = parsed.shelf;
-      subgenre = parsed.subgenre;
-    }
-  } else if (canonicalNiche) {
-    // No valid Amazon paths - fall back to canonical niche anchor
-    console.log(`⚠️ No valid Amazon paths found - using canonical niche anchor: ${canonicalNiche.expectedGenre}`);
-    shelf = canonicalNiche.expectedGenre;
-    subgenre = canonicalNiche.expectedDomains[0] || canonicalNiche.expectedGenre;
-  }
-  
-  // If primary path didn't yield a good mapping, try alternate paths
-  if (shelf.includes("General") && amazonAlternatePaths.length > 0) {
-    for (const altPath of amazonAlternatePaths) {
-      const mapping = findGenreMapping(altPath, userCategory);
-      if (mapping && !mapping.shelf.includes("General")) {
-        shelf = mapping.shelf;
-        subgenre = mapping.subgenre;
-        microgenre = mapping.microgenre;
-        break;
-      }
-    }
-  }
-  
-  // Final fallback: if still generic and we have a canonical niche, use it
-  if (shelf.includes("General") && canonicalNiche?.expectedGenre) {
-    console.log(`⚠️ Using canonical niche as fallback: ${canonicalNiche.expectedGenre}`);
-    shelf = canonicalNiche.expectedGenre;
-    if (canonicalNiche.expectedDomains.length > 0) {
-      subgenre = canonicalNiche.expectedDomains[0];
-    }
-  }
+  console.log(`Final genre: family=${finalFamily}, shelf="${shelf}", subgenre="${subgenre}"`);
   
   return {
     category: userCategory,
