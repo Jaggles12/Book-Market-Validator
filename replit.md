@@ -57,6 +57,10 @@ Wouter provides a minimal routing solution with two primary routes:
 - `/server/storage.ts` - Data access layer with in-memory storage implementation
 - `/server/static.ts` - Static file serving for production builds
 - `/server/vite.ts` - Vite development server integration for HMR
+- `/server/types.ts` - Shared type definitions (NormalizedBook, InferredGenre, etc.)
+- `/server/relevance.ts` - 3-tier book relevance scoring (Core/Adjacent/Out-of-niche)
+- `/server/genreMap.ts` - Genre mapping configuration for Amazon category paths
+- `/server/genreInference.ts` - Genre inference engine using category clustering
 
 **API Design:**
 RESTful API with a single primary endpoint:
@@ -68,8 +72,23 @@ RESTful API with a single primary endpoint:
 3. Constructs Amazon search query based on genre
 4. Fetches top competing books via Rainforest API
 5. Normalizes and analyzes book data (pricing, reviews, rankings)
-6. Generates AI-powered verdict and suggestions via OpenAI
-7. Returns comprehensive market analysis to frontend
+6. Scores books for relevance using 3-tier system (Core ≥0.70, Adjacent 0.50-0.69, Out-of-niche <0.50)
+7. Infers shelf/subgenre/microgenre from Amazon category paths
+8. Generates AI-powered verdict and suggestions via OpenAI
+9. Returns comprehensive market analysis to frontend
+
+**Genre Inference System:**
+The application uses a data-driven genre inference system that analyzes Amazon category paths from the bestsellers_rank field:
+
+1. **Category Path Extraction**: During book normalization, Amazon category paths (e.g., "Books > Business & Money > Personal Finance") are extracted from bestsellers_rank entries and stored in `amazonCategoryPaths` and `primaryAmazonPath` fields.
+
+2. **Frequency Clustering**: The `inferAmazonCategoryCluster` function ranks category paths by weighted frequency across all books, giving higher weight to books with more reviews (indicating market significance).
+
+3. **Genre Mapping**: The dominant category path is matched against patterns in `genreMap.ts` to determine shelf (Fiction/Nonfiction), subgenre, and microgenre.
+
+4. **Fallback Logic**: When no patterns match, the system falls back to the user's original fiction/nonfiction selection while extracting any available subgenre from the category path.
+
+Design principle: The user's fiction/nonfiction selection is never overridden—it serves as a "hard lock". Amazon data only informs shelf/subgenre details.
 
 **Development vs Production:**
 - Development: Vite dev server integrated via middleware for HMR
