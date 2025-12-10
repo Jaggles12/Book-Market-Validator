@@ -421,39 +421,54 @@ export default function Validate() {
                       : "⚠️ Trend Alert: Most sales are coming from very recent books."}
                   </div>
 
-                  {/* Data Confidence */}
+                  {/* Market Signal & Data Confidence */}
                   <div className="mt-4 rounded-lg border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground">
-                    <div className="font-semibold text-foreground text-sm mb-1">
-                      Data confidence
+                    <div className="font-semibold text-foreground text-sm mb-2">
+                      Market Signal
                     </div>
 
-                    <div>
-                      <span className="font-medium">{data.detailedStats.totalBooks}</span>{" "}
-                      comparable books found.
-                    </div>
-
-                    <div>
-                      <span className="font-medium">{anchorCount}</span>{" "}
-                      anchor titles with confirmed Amazon Best Sellers Rank.
-                    </div>
-
-                    {bestRank != null && worstRank != null && (
-                      <div>
-                        Anchor ranks range from{" "}
-                        <span className="font-medium">
-                          #{bestRank.toLocaleString()}
-                        </span>{" "}
-                        to{" "}
-                        <span className="font-medium">
-                          #{worstRank.toLocaleString()}
-                        </span>{" "}
-                        in the Books store.
+                    {/* Core vs Adjacent breakdown */}
+                    {data.marketSignal && (
+                      <div className="space-y-2 mb-3">
+                        <div className="flex gap-4">
+                          <div className="flex-1 p-2 bg-emerald-50 rounded-lg text-center">
+                            <div className="text-lg font-bold text-emerald-700">
+                              {data.marketSignal.coreBookCount}
+                            </div>
+                            <div className="text-[10px] text-emerald-600">Direct Competitors</div>
+                          </div>
+                          <div className="flex-1 p-2 bg-blue-50 rounded-lg text-center">
+                            <div className="text-lg font-bold text-blue-700">
+                              {data.marketSignal.adjacentBookCount}
+                            </div>
+                            <div className="text-[10px] text-blue-600">Adjacent Titles</div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground bg-white/50 p-2 rounded">
+                          {data.marketSignal.explanation}
+                        </div>
                       </div>
                     )}
 
-                    <div className="mt-1 text-[11px]">
-                      Demand and competition scores are based primarily on these
-                      anchor titles, plus review and pricing patterns across the niche.
+                    <div className="text-[11px] space-y-1 pt-2 border-t border-border/30">
+                      <div>
+                        <span className="font-medium">{anchorCount}</span>{" "}
+                        anchor titles with confirmed Amazon Best Sellers Rank.
+                      </div>
+
+                      {bestRank != null && worstRank != null && (
+                        <div>
+                          Anchor ranks range from{" "}
+                          <span className="font-medium">
+                            #{bestRank.toLocaleString()}
+                          </span>{" "}
+                          to{" "}
+                          <span className="font-medium">
+                            #{worstRank.toLocaleString()}
+                          </span>{" "}
+                          in the Books store.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </AccordionContent>

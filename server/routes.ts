@@ -1915,8 +1915,8 @@ function computeMarketSnapshot(
   adjacentBooks?: NormalizedBook[]
 ) {
   // Compute signal summary if we have bucket data
-  const core = coreBooks || books.filter((b) => b.relevanceBucket === "Core");
-  const adjacent = adjacentBooks || books.filter((b) => b.relevanceBucket === "Adjacent");
+  const core = coreBooks || books.filter((b) => b.relevanceBucket === "core");
+  const adjacent = adjacentBooks || books.filter((b) => b.relevanceBucket === "adjacent");
   const marketSignal = computeMarketSignalSummary(core, adjacent);
 
   // Compute separate stats for core and adjacent

@@ -26,9 +26,16 @@ export interface ValidateResponse {
   genre: {
     category: string;
     subtype: string;
+    label?: string;
+    friendlyLabel?: string;
+    shelf?: string;
+    subgenre?: string;
+    microgenre?: string;
+    amazonPrimaryPath?: string;
+    amazonAlternatePaths?: string[];
   };
 
-  normalizedGenre: {
+  normalizedGenre?: {
     category: string;
     subtype: string;
   };
@@ -60,7 +67,6 @@ export interface ValidateResponse {
       moderate: number;
       weak: number;
     };
-    // Matches how results.tsx uses dominantAuthors: { name, count }
     dominantAuthors: {
       name: string;
       count: number;
@@ -68,6 +74,35 @@ export interface ValidateResponse {
     evergreenSignal: boolean;
     cheapBookShare: number;
     premiumBookShare: number;
+  };
+
+  // Market signal summary with core vs adjacent breakdown
+  marketSignal?: {
+    coreBookCount: number;
+    adjacentBookCount: number;
+    totalBookCount: number;
+    signalStrength: "strong" | "moderate" | "weak" | "sparse";
+    dataSource: "core" | "adjacent" | "combined" | "insufficient";
+    explanation: string;
+  };
+
+  // Separate stats for core and adjacent books
+  coreStats?: {
+    totalBooks: number;
+    avgRating: number;
+    avgReviews: number;
+    priceMin: number | null;
+    priceMax: number | null;
+    priceMedian: number | null;
+  };
+
+  adjacentStats?: {
+    totalBooks: number;
+    avgRating: number;
+    avgReviews: number;
+    priceMin: number | null;
+    priceMax: number | null;
+    priceMedian: number | null;
   };
 
   books: {
