@@ -1,0 +1,60 @@
+Clean Up the “Signal Strength vs Demand” Messaging
+
+Problem right now
+
+You’re outputting:
+
+marketSignal.signalStrength = "strong" with “Strong signal from 8 direct competitors.”
+
+demandLevel = "Low" and almost all BSRs are weak/null.
+
+To an author, this reads as: “Strong signal but low demand” with no explanation. It feels contradictory.
+
+High-value edit
+
+Condition your signalStrength and/or “strong signal” text on both:
+
+number of core comps, and
+
+quality of their BSR data.
+
+If many books but weak BSRs → call it “emerging / underexplored”, not “strong”.
+
+Pseudo-code:
+
+const coreCount = marketSignal.coreBookCount;
+const rankedCore = books.filter(
+  b => b.relevanceBucket === 'core' && typeof b.rank === 'number'
+);
+
+let signalStrength: "weak" | "moderate" | "strong" | "emerging";
+let signalExplanation: string;
+
+if (coreCount >= 6 && rankedCore.length >= 3) {
+  signalStrength = "strong";
+  signalExplanation = `Strong, well-defined niche with ${coreCount} direct competitors and multiple titles with measurable sales ranks.`;
+} else if (coreCount >= 4 && rankedCore.length >= 1) {
+  signalStrength = "emerging";
+  signalExplanation = `Emerging niche with ${coreCount} direct competitors but limited sales rank data, suggesting underexplored demand.`;
+} else if (coreCount >= 2) {
+  signalStrength = "moderate";
+  signalExplanation = `Moderate niche definition with a small cluster of direct competitors and thin sales data.`;
+} else {
+  signalStrength = "weak";
+  signalExplanation = `Weak or poorly defined niche with few clear comparables.`;
+}
+
+marketSignal.signalStrength = signalStrength;
+marketSignal.explanation = signalExplanation;
+
+
+Then, in the verdict text for a case like this (8 comps, but thin/weak ranks), you’ll get:
+
+signalStrength = "emerging"
+
+Explanation like:
+
+“Emerging niche with 8 direct competitors but limited sales rank data, suggesting underexplored demand.”
+
+👉 Why this is high value:
+It removes the “strong signal / low demand” contradiction and replaces it with a concept authors intuitively understand: “emerging / underexplored niche”. This makes your verdict feel smart instead of glitchy.
