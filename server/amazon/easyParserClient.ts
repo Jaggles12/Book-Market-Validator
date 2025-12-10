@@ -644,6 +644,9 @@ export function applyEnrichmentToBooks(
 export async function fetchAmazonBooks(
   searchTerm: string
 ): Promise<{ books: NormalizedBook[]; isDemo: boolean }> {
+  
+  console.log("[EasyParser] fetchAmazonBooks called");
+  
   const EASYPARSER_API_KEY = process.env.EASYPARSER_API_KEY;
 
   if (!EASYPARSER_API_KEY || demoMode) {
