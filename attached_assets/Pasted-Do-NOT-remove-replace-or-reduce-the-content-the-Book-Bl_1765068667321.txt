@@ -1,0 +1,67 @@
+Do NOT remove, replace, or reduce the content the Book Blueprint already generates.
+Do NOT change the structure of the card or delete sections that currently appear.
+
+You must keep all existing output exactly as it is AND add the following three new elements beneath the existing content inside the Book Blueprint card:
+
+1. Add a One-Sentence Logline (NEW SECTION)
+
+After the current Book Blueprint content, append a new clearly labeled subsection:
+
+Logline:
+Provide one single sentence that summarizes the book’s commercial premise using a genre-appropriate formula.
+
+For fiction, follow this structure:
+[Protagonist] must [goal] despite [obstacle/forces], or else [stakes].
+
+For nonfiction, follow this structure:
+This book helps [specific reader] go from [problem] to [outcome] by [method/framework].
+
+This logline MUST be specific to the niche the user entered and must NOT be generic writing advice.
+
+2. Add a 5-Beat Structure Summary (NEW SECTION)
+
+After the Logline subsection, append:
+
+5-Beat Structure Summary:
+Provide a five-point outline that reflects the standard narrative or conceptual arc for this niche.
+
+Use THESE exact five beats (always, for all genres):
+
+Setup / Context – Establish the protagonist, world, or reader problem.
+
+Disruption / Inciting Event – Introduce the destabilizing force or key need.
+
+Rising Complications / Development – Escalate challenges, discoveries, or tensions.
+
+Climax / Breakthrough – Reveal major turning point, confrontation, or insight.
+
+Resolution / Integration – Show aftermath, resolution, or new equilibrium.
+
+Each beat should be 1–2 sentences and tailored to the specific genre/niche.
+
+This section is in addition to the existing outline, not a replacement.
+
+3. Add an Opening Catalyst Prompt (NEW SECTION)
+
+After the 5-Beat Structure Summary, append:
+
+Opening Catalyst Prompt:
+Provide 1–2 sentences instructing the writer how to draft the first 200–300 words of their book based on genre conventions.
+
+Examples of the pattern you must follow:
+
+For fiction:
+“Write the opening moment that reveals the protagonist’s ordinary world while hinting at the deeper conflict or mystery that will disrupt it.”
+
+For nonfiction:
+“Write the opening passage that presents the reader’s core problem or tension and establishes the emotional or conceptual hook.”
+
+The prompt must be specific to the user’s niche, not generic.
+
+⚠️ Clarification for Replit
+
+Do NOT remove any existing Book Blueprint sections.
+
+Do NOT shorten or simplify the Core Promise, Ideal Reader, Differentiation, or current outline.
+
+Simply add the three new sections at the bottom of the Book Blueprint card.

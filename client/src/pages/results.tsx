@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/MobileLayout";
 import { useEffect, useState } from "react";
 import { validateBookIdea, fetchBlueprint, generateBlueprint, saveBlueprint, type BookBlueprint } from "@/lib/api-validator";
-import type { MarketAnalysis } from "@/lib/mock-validator";
+import type { ValidateResponse } from "@/lib/api-validator";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, CheckCircle2, AlertTriangle, XCircle, 
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
 
-function generateVerdictExplanation(data: MarketAnalysis): string[] {
+function generateVerdictExplanation(data: ValidateResponse): string[] {
   const bullets: string[] = [];
   const { stats, detailedStats } = data;
   
@@ -62,24 +62,42 @@ function generateVerdictExplanation(data: MarketAnalysis): string[] {
 }
 
 export default function Validate() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<MarketAnalysis | null>(null);
+  const [data, setData] = useState<ValidateResponse | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
-  
+
   const query = new URLSearchParams(window.location.search).get("q") || "";
+  const bookTypeParam = new URLSearchParams(window.location.search).get("type");
+  const bookType =
+    bookTypeParam === "fiction" || bookTypeParam === "nonfiction"
+      ? bookTypeParam
+      : null;
+
+  // ---- Data confidence derived values (safe when data is null) ----
+  const salesLeaders = data?.salesLeaders ?? [];
+  const anchorCount = salesLeaders.length;
+  const anchorRanks = salesLeaders
+    .map((s) => s.rank)
+    .filter((r) => typeof r === "number");
+
+  const bestRank =
+    anchorRanks.length > 0 ? Math.min(...anchorRanks) : null;
+
+  const worstRank =
+    anchorRanks.length > 0 ? Math.max(...anchorRanks) : null;
 
   useEffect(() => {
     if (!query) {
       setLocation("/");
       return;
     }
-    
-    validateBookIdea(query).then((result) => {
+
+    validateBookIdea(query, bookType || undefined).then((result) => {
       setData(result);
       setLoading(false);
     });
-  }, [query, setLocation]);
+  }, [query, bookType, setLocation]);
 
   const verdictColors = {
     GREEN: "bg-emerald-500 text-white shadow-emerald-500/30",
@@ -242,7 +260,9 @@ export default function Validate() {
               <div className="flex items-center gap-2 text-muted-foreground mb-1 text-xs font-bold uppercase tracking-wide">
                 <DollarSign size={14} /> Avg Price
               </div>
-              <div className="text-2xl font-bold text-foreground">${data.stats.avgPrice.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-foreground">
+                {data.stats.avgPrice != null ? `$${data.stats.avgPrice.toFixed(2)}` : "N/A"}
+              </div>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-border/50 shadow-sm">
               <div className="flex items-center gap-2 text-muted-foreground mb-1 text-xs font-bold uppercase tracking-wide">
@@ -253,6 +273,56 @@ export default function Validate() {
               </div>
             </div>
           </motion.div>
+          
+          {/* Top 5 Bestsellers */}
+          {data.salesLeaders && data.salesLeaders.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="bg-white p-5 rounded-2xl border border-border/50 shadow-sm"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-base font-semibold">Top 5 Bestsellers</h3>
+                <span className="text-[10px] text-muted-foreground">
+                  Based on the 5 ranked titles Amazon shows for this niche.
+                </span>
+              </div>
+              <ul className="mt-2 space-y-2 text-sm">
+                {data.salesLeaders.map((book, idx) => (
+                  <li
+                    key={book.title + book.rank}
+                    className="border-t pt-2 first:border-t-0 first:pt-0"
+                  >
+                    <div className="font-medium">
+                      {idx + 1}. {book.title}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {/* BSR */}
+                      {book.rank != null ? (
+                        <>BSR #{book.rank.toLocaleString()} ·{" "}</>
+                      ) : (
+                        <>BSR N/A ·{" "}</>
+                      )}
+
+                      {/* Rating */}
+                      Rating {book.rating != null ? book.rating.toFixed(1) : "—"} ·{" "}
+
+                      {/* Reviews */}
+                      {book.reviews != null
+                        ? `${book.reviews.toLocaleString()} reviews`
+                        : "No reviews yet"}{" "}
+                      ·{" "}
+
+                      {/* Price */}
+                      {book.price != null ? `$${book.price.toFixed(2)}` : "Price N/A"}
+                    </div>
+                    </li>
+                    ))}
+                    </ul>
+                    </motion.div>
+                    )}
+
 
           {/* Detailed Metrics Accordion */}
           <motion.div
@@ -266,111 +336,229 @@ export default function Validate() {
             <Accordion type="single" collapsible className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
               
               {/* Demand Analysis */}
-              <AccordionItem value="demand" className="border-b border-border/50">
+              <AccordionItem
+                value="demand"
+                className="border-b border-border/50"
+              >
                 <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-gray-50">
                   <div className="flex items-center gap-3 text-left">
                     <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                       <TrendingUp size={16} />
                     </div>
                     <div>
-                      <div className="font-semibold text-foreground">Sales Demand</div>
-                      <div className="text-xs text-muted-foreground">BSR & Rank Analysis</div>
+                      <div className="font-semibold text-foreground">
+                        Sales Demand
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {data.stats.demandLevel} demand ·{" "}
+                        {data.stats.competitionLevel} competition ·{" "}
+                        {data.detailedStats.totalBooks} comparable titles
+                      </div>
                     </div>
                   </div>
                 </AccordionTrigger>
+
                 <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
                   <div className="space-y-3">
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs font-medium">
                         <span>Very Strong (Rank &lt; 10k)</span>
-                        <span>{data.detailedStats.bsrBuckets.veryStrong} books</span>
+                        <span>
+                          {data.detailedStats.bsrBuckets.veryStrong} books
+                        </span>
                       </div>
-                      <Progress value={(data.detailedStats.bsrBuckets.veryStrong / data.detailedStats.totalBooks) * 100} className="h-2" indicatorClassName="bg-emerald-500" />
+                      <Progress
+                        value={
+                          (data.detailedStats.bsrBuckets.veryStrong /
+                            data.detailedStats.totalBooks) *
+                          100
+                        }
+                        className="h-2"
+                        indicatorClassName="bg-emerald-500"
+                      />
                     </div>
+
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs font-medium">
-                        <span>Strong (Rank 10k-100k)</span>
-                        <span>{data.detailedStats.bsrBuckets.strong} books</span>
+                        <span>Strong (Rank 10k–100k)</span>
+                        <span>
+                          {data.detailedStats.bsrBuckets.strong} books
+                        </span>
                       </div>
-                      <Progress value={(data.detailedStats.bsrBuckets.strong / data.detailedStats.totalBooks) * 100} className="h-2" indicatorClassName="bg-blue-500" />
+                      <Progress
+                        value={
+                          (data.detailedStats.bsrBuckets.strong /
+                            data.detailedStats.totalBooks) *
+                          100
+                        }
+                        className="h-2"
+                        indicatorClassName="bg-blue-500"
+                      />
                     </div>
+
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs font-medium">
                         <span>Weak (Rank &gt; 300k)</span>
-                        <span>{data.detailedStats.bsrBuckets.weak} books</span>
+                        <span>
+                          {data.detailedStats.bsrBuckets.weak} books
+                        </span>
                       </div>
-                      <Progress value={(data.detailedStats.bsrBuckets.weak / data.detailedStats.totalBooks) * 100} className="h-2" indicatorClassName="bg-gray-300" />
+                      <Progress
+                        value={
+                          (data.detailedStats.bsrBuckets.weak /
+                            data.detailedStats.totalBooks) *
+                          100
+                        }
+                        className="h-2"
+                        indicatorClassName="bg-gray-300"
+                      />
                     </div>
                   </div>
+
                   <div className="p-3 bg-gray-50 rounded-xl text-xs text-muted-foreground">
-                    {data.detailedStats.evergreenSignal 
+                    {data.detailedStats.evergreenSignal
                       ? "🌱 Evergreen Signal: Both new and old books are selling well."
                       : "⚠️ Trend Alert: Most sales are coming from very recent books."}
+                  </div>
+
+                  {/* Data Confidence */}
+                  <div className="mt-4 rounded-lg border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground">
+                    <div className="font-semibold text-foreground text-sm mb-1">
+                      Data confidence
+                    </div>
+
+                    <div>
+                      <span className="font-medium">{data.detailedStats.totalBooks}</span>{" "}
+                      comparable books found.
+                    </div>
+
+                    <div>
+                      <span className="font-medium">{anchorCount}</span>{" "}
+                      anchor titles with confirmed Amazon Best Sellers Rank.
+                    </div>
+
+                    {bestRank != null && worstRank != null && (
+                      <div>
+                        Anchor ranks range from{" "}
+                        <span className="font-medium">
+                          #{bestRank.toLocaleString()}
+                        </span>{" "}
+                        to{" "}
+                        <span className="font-medium">
+                          #{worstRank.toLocaleString()}
+                        </span>{" "}
+                        in the Books store.
+                      </div>
+                    )}
+
+                    <div className="mt-1 text-[11px]">
+                      Demand and competition scores are based primarily on these
+                      anchor titles, plus review and pricing patterns across the niche.
+                    </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
 
-              {/* Competition Analysis */}
-              <AccordionItem value="competition" className="border-b border-border/50">
-                <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-gray-50">
-                  <div className="flex items-center gap-3 text-left">
-                    <div className="h-8 w-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
-                      <Award size={16} />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-foreground">Competition</div>
-                      <div className="text-xs text-muted-foreground">Review Counts & Dominance</div>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
-                   <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="p-2 bg-red-50 rounded-lg">
-                        <div className="text-lg font-bold text-red-600">{data.detailedStats.strongCompetitors}</div>
-                        <div className="text-[10px] text-muted-foreground leading-tight">Giants<br/>(1000+ revs)</div>
-                      </div>
-                      <div className="p-2 bg-orange-50 rounded-lg">
-                        <div className="text-lg font-bold text-orange-600">{data.detailedStats.midCompetitors}</div>
-                        <div className="text-[10px] text-muted-foreground leading-tight">Mid-Tier<br/>(100-1k revs)</div>
-                      </div>
-                      <div className="p-2 bg-green-50 rounded-lg">
-                        <div className="text-lg font-bold text-green-600">{data.detailedStats.lowReviewBooks}</div>
-                        <div className="text-[10px] text-muted-foreground leading-tight">New<br/>(&lt;50 revs)</div>
-                      </div>
-                   </div>
-                   
-                   <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Author Dominance</div>
-                        {data.detailedStats.dominantAuthors.length === 0 && (
-                          <div className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                            <CheckCircle2 size={10} /> Healthy (Diverse)
+                    {/* Competition Analysis */}
+                    <AccordionItem
+                      value="competition"
+                      className="border-b border-border/50"
+                    >
+                      <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-gray-50">
+                        <div className="flex items-center gap-3 text-left">
+                          <div className="h-8 w-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                            <Award size={16} />
                           </div>
-                        )}
-                         {data.detailedStats.dominantAuthors.length > 0 && (
-                          <div className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                            <AlertTriangle size={10} /> Warning
-                          </div>
-                        )}
-                      </div>
-                      
-                      {data.detailedStats.dominantAuthors.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {data.detailedStats.dominantAuthors.map((author, i) => (
-                            <div key={i} className="text-xs bg-amber-50 text-amber-900 px-2 py-1 rounded-md font-medium border border-amber-100 flex items-center gap-1">
-                              <Users size={10} className="opacity-50"/>
-                              {author.name} ({author.count} books)
+                          <div>
+                            <div className="font-semibold text-foreground">
+                              Competition
                             </div>
-                          ))}
+                            <div className="text-xs text-muted-foreground">
+                              Review Counts &amp; Dominance
+                            </div>
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">
-                          No single author controls more than 3 spots in the top results. This is good for new entrants.
-                        </p>
-                      )}
-                   </div>
-                </AccordionContent>
-              </AccordionItem>
+                      </AccordionTrigger>
+
+                      <AccordionContent className="px-5 pb-5 pt-1 space-y-4">
+                        {/* Review tiers */}
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="p-2 bg-red-50 rounded-lg">
+                            <div className="text-lg font-bold text-red-600">
+                              {data.detailedStats.strongCompetitors}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground leading-tight">
+                              Giants
+                              <br />
+                              (1000+ revs)
+                            </div>
+                          </div>
+
+                          <div className="p-2 bg-orange-50 rounded-lg">
+                            <div className="text-lg font-bold text-orange-600">
+                              {data.detailedStats.midCompetitors}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground leading-tight">
+                              Mid-Tier
+                              <br />
+                              (100–1k revs)
+                            </div>
+                          </div>
+
+                          <div className="p-2 bg-green-50 rounded-lg">
+                            <div className="text-lg font-bold text-green-600">
+                              {data.detailedStats.lowReviewBooks}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground leading-tight">
+                              New
+                              <br />
+                              (&lt;50 revs)
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Author dominance */}
+                        <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                              Author Dominance
+                            </div>
+
+                            {data.detailedStats.dominantAuthors.length === 0 && (
+                              <div className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                                <CheckCircle2 size={10} /> Healthy (Diverse)
+                              </div>
+                            )}
+
+                            {data.detailedStats.dominantAuthors.length > 0 && (
+                              <div className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                                <AlertTriangle size={10} /> Warning
+                              </div>
+                            )}
+                          </div>
+
+                          {data.detailedStats.dominantAuthors.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {data.detailedStats.dominantAuthors.map((author, i) => (
+                                <div
+                                  key={i}
+                                  className="text-xs bg-amber-50 text-amber-900 px-2 py-1 rounded-md font-medium border border-amber-100 flex items-center gap-1"
+                                >
+                                  <Users size={10} className="opacity-50" />
+                                  {author.name} ({author.count} books)
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">
+                              No single author controls more than 3 spots in the top
+                              results. This is good for new entrants.
+                            </p>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+
 
               {/* Pricing Analysis */}
               <AccordionItem value="pricing" className="border-none">
@@ -515,51 +703,71 @@ export default function Validate() {
                     <h3 className="font-bold text-foreground">Positioning & Ideal Reader</h3>
                   </div>
                   
-                  {data.deepAnalysis.idealReader && (
-                    <div className="mb-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Ideal Reader</p>
-                      {typeof data.deepAnalysis.idealReader === 'string' ? (
-                        <p className="text-sm text-foreground/80">{data.deepAnalysis.idealReader}</p>
-                      ) : (
-                        <div className="space-y-2 text-sm text-foreground/80">
-                          {data.deepAnalysis.idealReader.demographics && (
-                            <p><span className="font-medium">Demographics:</span> {data.deepAnalysis.idealReader.demographics}</p>
-                          )}
-                          {data.deepAnalysis.idealReader.psychographics && (
-                            <p><span className="font-medium">Psychographics:</span> {data.deepAnalysis.idealReader.psychographics}</p>
-                          )}
-                          {data.deepAnalysis.idealReader.painPoints && data.deepAnalysis.idealReader.painPoints.length > 0 && (
+                  {/* Ideal Reader Snapshot */}
+                  {data.deepAnalysis?.idealReader && (
+                    <div className="rounded-xl border bg-white p-4 shadow-sm space-y-3">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        Ideal Reader Snapshot
+                      </h3>
+
+                      {/* Demographics */}
+                      {data.deepAnalysis.idealReader.demographics && (
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          <div>
+                            <span className="font-medium text-foreground">Age:</span>{" "}
+                            {data.deepAnalysis.idealReader.demographics.age}
+                          </div>
+                          <div>
+                            <span className="font-medium text-foreground">Gender:</span>{" "}
+                            {data.deepAnalysis.idealReader.demographics.gender}
+                          </div>
+                          <div>
+                            <span className="font-medium text-foreground">Income:</span>{" "}
+                            {data.deepAnalysis.idealReader.demographics.income}
+                          </div>
+                          <div>
+                            <span className="font-medium text-foreground">Location:</span>{" "}
+                            {data.deepAnalysis.idealReader.demographics.location}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Psychographics */}
+                      {data.deepAnalysis.idealReader.psychographics && (
+                        <div className="pt-3 border-t border-border/40 space-y-1 text-xs text-muted-foreground">
+                          {Array.isArray(data.deepAnalysis.idealReader.psychographics) ? (
+                            // Case 1: Psychographics is an array of strings
                             <div>
-                              <span className="font-medium">Pain Points:</span>
-                              <ul className="mt-1 ml-4">
-                                {data.deepAnalysis.idealReader.painPoints.map((point, i) => (
-                                  <li key={i} className="flex gap-2">
-                                    <span className="text-blue-500">•</span>
-                                    <span>{point}</span>
-                                  </li>
-                                ))}
-                              </ul>
+                              <span className="font-medium text-foreground">Psychographics:</span>{" "}
+                              {data.deepAnalysis.idealReader.psychographics.join(", ")}
                             </div>
-                          )}
-                          {data.deepAnalysis.idealReader.desiredOutcome && (
-                            <p><span className="font-medium">Desired Outcome:</span> {data.deepAnalysis.idealReader.desiredOutcome}</p>
-                          )}
-                          {data.deepAnalysis.idealReader.emotionalTrigger && (
-                            <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                              <p className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-1">Emotional Trigger</p>
-                              <p className="text-sm text-amber-900">{data.deepAnalysis.idealReader.emotionalTrigger}</p>
-                            </div>
-                          )}
-                          {data.deepAnalysis.idealReader.emotionalPayoff && (
-                            <div className="mt-2 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 mb-1">Emotional Payoff</p>
-                              <p className="text-sm text-emerald-900">{data.deepAnalysis.idealReader.emotionalPayoff}</p>
-                            </div>
+                          ) : (
+                            // Case 2: Psychographics is an object with values/painPoints/goals
+                            <>
+                              {data.deepAnalysis.idealReader.psychographics.values && (
+                                <div>
+                                  <span className="font-medium text-foreground">Values:</span>{" "}
+                                  {data.deepAnalysis.idealReader.psychographics.values.join(", ")}
+                                </div>
+                              )}
+
+                              {data.deepAnalysis.idealReader.psychographics.painPoints && (
+                                <div>
+                                  <span className="font-medium text-foreground">Pain Points:</span>{" "}
+                                  {data.deepAnalysis.idealReader.psychographics.painPoints.join(", ")}
+                                </div>
+                              )}
+
+                              {data.deepAnalysis.idealReader.psychographics.goals && (
+                                <div>
+                                  <span className="font-medium text-foreground">Goals:</span>{" "}
+                                  {data.deepAnalysis.idealReader.psychographics.goals.join(", ")}
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
-                    </div>
-                  )}
                   
                   {data.deepAnalysis.positioningStatement && (
                     <div className="mb-4 p-3 bg-blue-50 rounded-xl">
@@ -890,53 +1098,106 @@ export default function Validate() {
             </>
           )}
 
-           {/* Competitor Books */}
-           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="overflow-hidden"
-          >
-            <h3 className="text-lg font-bold mb-4 px-1">Top Competitors</h3>
-            <div className="flex gap-4 overflow-x-auto pb-4 px-1 -mx-1 no-scrollbar">
-              {data.books.map((book, i) => (
-                <div key={i} className="shrink-0 w-32">
-                  <div 
-                    className="w-32 h-48 rounded-lg shadow-md mb-3 relative overflow-hidden"
-                    style={{ backgroundColor: book.image ? undefined : book.coverColor }}
-                  >
-                    {book.image ? (
-                      <img 
-                        src={book.image} 
-                        alt={book.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.parentElement!.style.backgroundColor = book.coverColor;
-                        }}
-                      />
-                    ) : null}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                    <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
-                      #{book.rank.toLocaleString()}
-                    </div>
-                    {!book.image && (
-                      <div className="absolute bottom-3 left-3 right-3 text-white font-bold text-sm leading-tight shadow-black drop-shadow-md">
-                        {book.title}
+              {/* Competitor Books */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="overflow-hidden"
+              >
+                <h3 className="text-lg font-bold mb-4 px-1">Top Competitors</h3>
+
+                {Array.isArray(data.books) && data.books.length > 0 ? (
+                  <div className="flex gap-4 overflow-x-auto pb-4 px-1 -mx-1 no-scrollbar">
+                    {data.books.map((book, i) => (
+                      <div key={i} className="shrink-0 w-32">
+                        <div
+                          className="w-32 h-48 rounded-lg shadow-md mb-3 relative overflow-hidden"
+                          style={{
+                            backgroundColor: book.image
+                              ? undefined
+                              : book.coverColor || "#111827",
+                          }}
+                        >
+                          {book.image ? (
+                            <img
+                              src={book.image}
+                              alt={book.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                const parent = target.parentElement as HTMLElement | null;
+
+                                // Hide the broken image
+                                target.style.display = "none";
+
+                                // Safely set a fallback background color
+                                if (parent) {
+                                  parent.style.backgroundColor =
+                                    book.coverColor || "#111827"; // slate-ish fallback
+                                }
+                              }}
+                            />
+                          ) : null}
+
+                          {/* Dark gradient overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+
+                          {/* Rank badge – only if rank is a valid number */}
+                          {typeof book.rank === "number" &&
+                            !isNaN(book.rank) &&
+                            book.rank > 0 && (
+                              <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
+                                #{book.rank.toLocaleString()}
+                              </div>
+                            )}
+
+                          {/* Fallback title text when no image */}
+                          {!book.image && (
+                            <div className="absolute bottom-3 left-3 right-3 text-white font-bold text-sm leading-tight drop-shadow-md">
+                              {book.title}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Text details */}
+                        <p className="text-xs font-medium truncate text-foreground">
+                          {book.title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {book.author || "Unknown author"}
+                        </p>
+
+                        {/* Stats line: BSR, rating, reviews, price */}
+                        <div className="mt-1 text-[10px] text-muted-foreground">
+                          {typeof book.rank === "number" &&
+                          !isNaN(book.rank) &&
+                          book.rank > 0
+                            ? `BSR #${book.rank.toLocaleString()}`
+                            : "BSR —"}
+                          {" · "}
+                          Rating{" "}
+                          {book.rating != null && !isNaN(book.rating)
+                            ? book.rating.toFixed(1)
+                            : "—"}
+                          {" · "}
+                          {book.reviews != null && !isNaN(book.reviews)
+                            ? `${book.reviews.toLocaleString()} reviews`
+                            : "Reviews —"}
+                          {" · "}
+                          {typeof book.price === "number" && !isNaN(book.price)
+                            ? `$${book.price.toFixed(2)}`
+                            : "Price —"}
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                  <p className="text-xs font-medium truncate text-foreground">{book.title}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{book.author}</p>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className="text-[10px] font-bold bg-gray-100 px-1.5 rounded text-gray-600">★ {book.rating.toFixed(1)}</span>
-                    <span className="text-[10px] text-muted-foreground">({book.reviews})</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+                ) : (
+                  <p className="text-xs text-muted-foreground px-1">
+                    No comparable books were found for this niche.
+                  </p>
+                )}
+              </motion.div>
 
         </div>
       </div>
