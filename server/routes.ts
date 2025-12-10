@@ -78,6 +78,7 @@ interface RainforestBook {
   // Author metadata
   author?: string; // single author string (common in Rainforest payloads)
   authors?: { name?: string }[]; // structured author list
+  byline?: string; // "by Author Name" format from search results
 
   rating?: number;
   ratings_total?: number;
@@ -935,9 +936,16 @@ function filterToBooksOnly(books: NormalizedBook[]): NormalizedBook[] {
 // Rainforest helpers
 // -----------------------------
 
-async function fetchProductBSR(asin: string): Promise<number | null> {
+interface ProductEnrichmentData {
+  rank: number | null;
+  author: string | null;
+  publicationDate: string | null;
+  publicationYear: number | null;
+}
+
+async function fetchProductBSR(asin: string): Promise<ProductEnrichmentData> {
   const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY;
-  if (!RAINFOREST_API_KEY) return null;
+  if (!RAINFOREST_API_KEY) return { rank: null, author: null, publicationDate: null, publicationYear: null };
 
   try {
     const params = {
@@ -955,13 +963,16 @@ async function fetchProductBSR(asin: string): Promise<number | null> {
 
     // Debug log to see structure when needed
     console.log(
-      "Rainforest BSR debug (product):",
+      "Rainforest product detail debug:",
       JSON.stringify(
         {
           asin,
           bestsellers_rank: product.bestsellers_rank,
           sales_rank: product.sales_rank,
           rank: product.rank,
+          authors: product.authors,
+          publication_date: product.publication_date,
+          product_details: product.product_details,
         },
         null,
         2
@@ -1002,12 +1013,77 @@ async function fetchProductBSR(asin: string): Promise<number | null> {
     const finalRank =
       typeof primaryRank === "number" && primaryRank > 0 ? primaryRank : null;
 
-    console.log("Rainforest BSR chosen (product):", { asin, finalRank });
+    // Extract author from product detail
+    let author: string | null = null;
+    if (Array.isArray(product.authors) && product.authors.length > 0) {
+      const firstAuthor = product.authors[0];
+      if (typeof firstAuthor === "string" && firstAuthor.trim().length > 0) {
+        author = firstAuthor.trim();
+      } else if (firstAuthor && typeof firstAuthor.name === "string" && firstAuthor.name.trim().length > 0) {
+        author = firstAuthor.name.trim();
+      }
+    } else if (typeof product.author === "string" && product.author.trim().length > 0) {
+      author = product.author.trim();
+    } else if (typeof product.by === "string" && product.by.trim().length > 0) {
+      let byline = product.by.trim();
+      if (byline.toLowerCase().startsWith("by ")) {
+        byline = byline.substring(3).trim();
+      }
+      author = byline;
+    }
 
-    return finalRank;
+    // Extract publication date
+    let publicationDate: string | null = null;
+    let publicationYear: number | null = null;
+    
+    if (typeof product.publication_date === "string" && product.publication_date.trim().length > 0) {
+      publicationDate = product.publication_date.trim();
+    } else if (product.product_details) {
+      // Sometimes publication info is in product_details
+      const details = product.product_details;
+      if (typeof details.publication_date === "string") {
+        publicationDate = details.publication_date;
+      } else if (typeof details["Publication date"] === "string") {
+        publicationDate = details["Publication date"];
+      } else if (typeof details.publisher === "string") {
+        // Sometimes publisher includes date like "Publisher (January 1, 2023)"
+        const match = details.publisher.match(/\(([^)]+)\)/);
+        if (match && match[1]) {
+          publicationDate = match[1];
+        }
+      }
+    }
+
+    if (publicationDate) {
+      // Try multiple parsing strategies for publication year
+      
+      // 1) Look for 4-digit year directly in the string
+      const yearMatch = publicationDate.match(/\b(19|20)\d{2}\b/);
+      if (yearMatch) {
+        const year = parseInt(yearMatch[0], 10);
+        if (year >= 1900 && year <= 2100) {
+          publicationYear = year;
+        }
+      }
+      
+      // 2) Fallback to Date parsing if regex didn't find a year
+      if (!publicationYear) {
+        const parsed = new Date(publicationDate);
+        if (!isNaN(parsed.getTime())) {
+          const year = parsed.getFullYear();
+          if (year >= 1900 && year <= 2100) {
+            publicationYear = year;
+          }
+        }
+      }
+    }
+
+    console.log("Rainforest product enrichment:", { asin, finalRank, author, publicationDate, publicationYear });
+
+    return { rank: finalRank, author, publicationDate, publicationYear };
   } catch (err: any) {
-    console.error("Error fetching BSR for ASIN", asin, err?.message || err);
-    return null;
+    console.error("Error fetching product data for ASIN", asin, err?.message || err);
+    return { rank: null, author: null, publicationDate: null, publicationYear: null };
   }
 }
 
@@ -1186,6 +1262,26 @@ async function fetchAmazonBooks(
         }
       }
 
+      // 3) Check "byline" field (often "by Author Name" format)
+      if (typeof rb.byline === "string" && rb.byline.trim().length > 0) {
+        // Strip common prefixes like "by ", "By ", etc.
+        let byline = rb.byline.trim();
+        if (byline.toLowerCase().startsWith("by ")) {
+          byline = byline.substring(3).trim();
+        }
+        // Handle multiple authors separated by commas - take first author
+        if (byline.includes(",")) {
+          byline = byline.split(",")[0].trim();
+        }
+        // Handle " and " separator
+        if (byline.toLowerCase().includes(" and ")) {
+          byline = byline.split(/ and /i)[0].trim();
+        }
+        if (byline.length > 0) {
+          return byline;
+        }
+      }
+
       return "";
     }
 
@@ -1288,28 +1384,41 @@ async function fetchAmazonBooks(
       )
     );
 
-    // 2) Optional: enrich top few with dedicated product BSR calls
+    // 2) Optional: enrich top few with dedicated product calls (BSR + author + publication)
     const topSearchResults = results.slice(0, 5).filter((r) => r.asin);
     if (topSearchResults.length > 0) {
       const asins = topSearchResults.map((r) => r.asin!);
-      console.log("Fetching BSR data for top books:", asins.join(", "));
+      console.log("Fetching product enrichment data for top books:", asins.join(", "));
 
-      const bsrValues = await Promise.all(
+      const enrichmentData = await Promise.all(
         topSearchResults.map((r) => fetchProductBSR(r.asin!))
       );
 
-      bsrValues.forEach((rank, idx) => {
+      enrichmentData.forEach((data, idx) => {
         const asin = topSearchResults[idx].asin!;
-        console.log("BSR enrichment result:", { asin, rank });
+        console.log("Product enrichment result:", { asin, ...data });
 
-        if (rank != null) {
-          const match = normalizedBooks.find((b) => b.asin === asin);
-          if (match) {
-            // Overwrite / enrich rank-related fields from product lookup
-            match.rawRank = rank;
-            match.rank = rank;
-            match.effectiveRank = rank;
+        const match = normalizedBooks.find((b) => b.asin === asin);
+        if (match) {
+          // Enrich rank if available
+          if (data.rank != null) {
+            match.rawRank = data.rank;
+            match.rank = data.rank;
+            match.effectiveRank = data.rank;
             match.rankSource = "product_lookup";
+          }
+          
+          // Enrich author if missing and available from product detail
+          if ((!match.authors || match.authors.length === 0) && data.author) {
+            match.authors = [data.author];
+          }
+          
+          // Enrich publication date/year if missing and available from product detail
+          if (!match.publicationDate && data.publicationDate) {
+            match.publicationDate = data.publicationDate;
+          }
+          if (!match.publicationYear && data.publicationYear) {
+            match.publicationYear = data.publicationYear;
           }
         }
       });
