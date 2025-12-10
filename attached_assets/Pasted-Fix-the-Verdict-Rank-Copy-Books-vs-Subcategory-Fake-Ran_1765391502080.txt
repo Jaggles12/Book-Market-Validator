@@ -1,0 +1,48 @@
+Fix the Verdict Rank Copy (Books vs Subcategory + Fake Range)
+
+Problem right now
+
+Your verdict text is doing this:
+
+“Top comparable titles rank from #168,633 to #168,633 in their Amazon subcategories…”
+
+Issues:
+
+168,633 is clearly the overall Books rank, not a subcategory rank.
+
+There’s only one sales leader with a rank, but the copy pretends there’s a range (from X to Y) where X = Y.
+
+High-value edit
+
+In the verdict generation logic (where you build verdictReason), change:
+
+Use min/max only if you actually have more than one ranked title.
+
+Label rank correctly as “Books store rank” unless you’re explicitly using subcategory ranks.
+
+Pseudo-code you can drop straight into Replit:
+
+// Assuming you already have something like:
+const rankedLeaders = salesLeaders.filter(b => typeof b.rank === 'number');
+
+if (rankedLeaders.length === 0) {
+  verdictReason = "Comparable titles have insufficient sales rank data, suggesting an emerging or underexplored niche with unclear demand.";
+} else if (rankedLeaders.length === 1) {
+  const r = rankedLeaders[0].rank;
+  verdictReason = `Top comparable title ranks around #${r.toLocaleString()} in the overall Books store, indicating experimental or underexplored demand with relatively low competition.`;
+} else {
+  const ranks = rankedLeaders.map(b => b.rank).sort((a, b) => a - b);
+  const minRank = ranks[0];
+  const maxRank = ranks[ranks.length - 1];
+  verdictReason = `Top comparable titles rank from #${minRank.toLocaleString()} to #${maxRank.toLocaleString()} in the overall Books store, indicating experimental or underexplored demand with relatively low competition.`;
+}
+
+
+If you later want to use subcategory ranks, create a separate field like topSubcategoryRank and reference that explicitly:
+
+// example string when using subcategory rank
+`The best-performing comparable title reaches the top #${subRank} of its main subcategory, while overall Books ranks remain modest.`
+
+
+👉 Why this is high value:
+This immediately fixes a trust-eroding bug: no more fake ranges, no more mislabeling “subcategory” vs “Books”. It’s small code, huge credibility gain.
