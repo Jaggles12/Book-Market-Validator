@@ -22,12 +22,15 @@ import {
   inferGenreFromBooks,
   generateFriendlyGenreLabelFromInferred,
 } from "./genreInference";
-import {
+import { amazonClient } from "./amazon";
+
+// Destructure from the provider-agnostic amazon client
+const {
   fetchAmazonBooks,
   computeEffectiveRank,
   batchEnrichBooks,
   applyEnrichmentToBooks,
-} from "./amazonClient";
+} = amazonClient;
 
 // Initialize OpenAI
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

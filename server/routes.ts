@@ -11,24 +11,24 @@ import { normalizeSearchTerms, type NormalizedSearchTerms } from "./keywordNorma
 import { inferGenreFromBooks, generateFriendlyGenreLabelFromInferred } from "./genreInference";
 import { deriveCanonicalNiche, computeSearchResultPurity, scoreCategoryAlignment, generateSearchTermsFromNiche } from "./canonicalNiche";
 import { runBookMarketValidation, generateFriendlyGenreLabel } from "./validatorService";
-import { 
-  fetchAmazonBooks, 
-  computeEffectiveRank, 
-  generateDemoBooks, 
-  demoMode, 
-  setDemoMode, 
-  RainforestBook,
-  RainforestRankEntry,
+import { amazonClient, RainforestBook, RainforestRankEntry, ProductEnrichmentData } from "./amazon";
+
+// Destructure from the provider-agnostic amazon client
+const {
+  fetchAmazonBooks,
+  computeEffectiveRank,
+  generateDemoBooks,
+  demoMode,
+  setDemoMode,
   extractSubcategoryLabel,
   chooseBestRankFromBestsellers,
   filterToBooksOnly,
   fetchProductBSR,
-  ProductEnrichmentData,
   enrichBookWithProductDetails,
   batchEnrichBooks,
   applyEnrichmentToBooks,
-  buildBooksSearchUrl
-} from "./amazonClient";
+  buildBooksSearchUrl,
+} = amazonClient;
 
 
 // -----------------------------
