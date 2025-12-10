@@ -857,8 +857,41 @@ function inferGenreFromSearchTerm(searchTerm: string): { category: GenreCategory
   return { category: "nonfiction", subtype: "general" };
 }
 
+// Extract a clean, readable subcategory label from a full Amazon category path
+// e.g., "Books > Mystery, Thriller & Suspense > Mystery > Cozy > Animals" → "Cozy > Animals"
+// e.g., "Books > Literature & Fiction > Genre Fiction > Mystery & Suspense" → "Mystery & Suspense"
+function extractSubcategoryLabel(fullPath: string): string {
+  if (!fullPath || fullPath.trim().length === 0) return "Books";
+  
+  const parts = fullPath.split(">").map((p) => p.trim());
+  
+  // Remove "Books" prefix if present
+  if (parts[0]?.toLowerCase() === "books") {
+    parts.shift();
+  }
+  
+  // Remove "Kindle Store" or "Kindle eBooks" prefixes
+  while (
+    parts.length > 0 &&
+    (parts[0]?.toLowerCase().includes("kindle") ||
+     parts[0]?.toLowerCase() === "ebooks")
+  ) {
+    parts.shift();
+  }
+  
+  // If we have 2 or fewer parts left, show all
+  if (parts.length <= 2) {
+    return parts.join(" > ") || "Books";
+  }
+  
+  // For longer paths, show the last 2 segments for specificity
+  // e.g., "Mystery, Thriller & Suspense > Mystery > Cozy > Animals" → "Cozy > Animals"
+  return parts.slice(-2).join(" > ");
+}
+
 // Prefer a meaningful rank from Rainforest's bestsellers_rank array
-function chooseBestRankFromBestsellers(entries: any[]): number | null {
+// Returns both the rank and the category it came from
+function chooseBestRankFromBestsellers(entries: any[]): { rank: number; category: string } | null {
   if (!Array.isArray(entries) || entries.length === 0) return null;
 
   // 1) Prefer the overall Books store rank if present
@@ -867,17 +900,26 @@ function chooseBestRankFromBestsellers(entries: any[]): number | null {
       typeof e.category === "string" && e.category.trim() === "Books"
   );
   if (booksEntry && typeof booksEntry.rank === "number" && booksEntry.rank > 0) {
-    return booksEntry.rank;
+    return { rank: booksEntry.rank, category: "Books" };
   }
 
-  // 2) Otherwise, pick the smallest numeric rank (strongest performance)
-  const numericRanks = entries
-    .map((e: any) => (typeof e.rank === "number" ? e.rank : null))
-    .filter((r: number | null): r is number => r !== null && r > 0);
-
-  if (numericRanks.length === 0) return null;
-
-  return Math.min(...numericRanks);
+  // 2) Otherwise, pick the entry with the smallest numeric rank (strongest performance)
+  const validEntries = entries.filter(
+    (e: any) => typeof e.rank === "number" && e.rank > 0
+  );
+  
+  if (validEntries.length === 0) return null;
+  
+  // Sort by rank ascending and pick the best
+  validEntries.sort((a: any, b: any) => a.rank - b.rank);
+  const best = validEntries[0];
+  
+  const categoryPath = typeof best.category === "string" ? best.category : "Books";
+  
+  return { 
+    rank: best.rank, 
+    category: extractSubcategoryLabel(categoryPath)
+  };
 }
 
 // -----------------------------
@@ -990,15 +1032,23 @@ async function fetchProductBSR(asin: string): Promise<ProductEnrichmentData> {
     );
 
     let primaryRank: number | null = null;
+    let rankCategory: string | null = null;
 
     // 1) Try bestsellers_rank array/object
     if (Array.isArray(product.bestsellers_rank)) {
-      primaryRank = chooseBestRankFromBestsellers(product.bestsellers_rank);
+      const result = chooseBestRankFromBestsellers(product.bestsellers_rank);
+      if (result) {
+        primaryRank = result.rank;
+        rankCategory = result.category;
+      }
     } else if (
       product.bestsellers_rank &&
       typeof product.bestsellers_rank.rank === "number"
     ) {
       primaryRank = product.bestsellers_rank.rank;
+      if (typeof product.bestsellers_rank.category === "string") {
+        rankCategory = extractSubcategoryLabel(product.bestsellers_rank.category);
+      }
     }
 
     // 2) Fallback to sales_rank
@@ -1168,11 +1218,19 @@ async function enrichBookWithProductDetails(asin: string): Promise<import("./typ
 
     // === EXTRACT RANK (existing logic) ===
     let primaryRank: number | null = null;
+    let rankCategory: string | null = null;
 
     if (Array.isArray(product.bestsellers_rank)) {
-      primaryRank = chooseBestRankFromBestsellers(product.bestsellers_rank);
+      const result = chooseBestRankFromBestsellers(product.bestsellers_rank);
+      if (result) {
+        primaryRank = result.rank;
+        rankCategory = result.category;
+      }
     } else if (product.bestsellers_rank && typeof product.bestsellers_rank.rank === "number") {
       primaryRank = product.bestsellers_rank.rank;
+      if (typeof product.bestsellers_rank.category === "string") {
+        rankCategory = extractSubcategoryLabel(product.bestsellers_rank.category);
+      }
     }
 
     if (primaryRank == null && Array.isArray(product.sales_rank) && product.sales_rank.length > 0) {
@@ -1674,18 +1732,23 @@ async function fetchAmazonBooks(
         const authors = primaryAuthor ? [primaryAuthor] : [];
 
         let rawRank: number | null = null;
+        let rankCategory: string | null = null;
 
-        // Try to extract any rank from search result
+        // Try to extract rank and category from search result
         if (Array.isArray(r.bestsellers_rank) && r.bestsellers_rank.length > 0) {
-          const firstRank = r.bestsellers_rank[0];
-          if (firstRank && typeof firstRank.rank === "number") {
-            rawRank = firstRank.rank;
+          const result = chooseBestRankFromBestsellers(r.bestsellers_rank);
+          if (result) {
+            rawRank = result.rank;
+            rankCategory = result.category;
           }
         } else if (
           r.bestsellers_rank &&
           typeof (r.bestsellers_rank as RainforestRankEntry).rank === "number"
         ) {
           rawRank = (r.bestsellers_rank as RainforestRankEntry).rank!;
+          if (typeof (r.bestsellers_rank as RainforestRankEntry).category === "string") {
+            rankCategory = extractSubcategoryLabel((r.bestsellers_rank as RainforestRankEntry).category!);
+          }
         } else if (Array.isArray(r.sales_rank) && r.sales_rank.length > 0) {
           const firstSales = r.sales_rank[0];
           if (firstSales && typeof firstSales.rank === "number") {
@@ -1699,6 +1762,7 @@ async function fetchAmazonBooks(
 
         if (rawRank != null && rawRank <= 0) {
           rawRank = null;
+          rankCategory = null;
         }
 
         const publicationDate =
@@ -1777,6 +1841,7 @@ async function fetchAmazonBooks(
           // initial guess; may be upgraded by product lookup / heuristics
           rankSource: rawRank ? "bestseller" : "missing",
           rank: null,
+          rankCategory,
           isRelevant: true,
           rawCategories,
           amazonCategoryPaths,
@@ -3642,6 +3707,18 @@ export async function registerRoutes(
 
         const rankBand = getSalesLeaderRankBand(salesLeaders);
 
+        // Aggregate top rank categories from books with ranks
+        const categoryFrequency: Record<string, number> = {};
+        for (const b of enrichedDisplayBooks) {
+          if (b.rankCategory && (b.rank || b.effectiveRank)) {
+            categoryFrequency[b.rankCategory] = (categoryFrequency[b.rankCategory] || 0) + 1;
+          }
+        }
+        const topRankCategories = Object.entries(categoryFrequency)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([name]) => name);
+
         const demandDescription =
           demandLevelPretty === "High"
             ? "strong reader demand"
@@ -3659,9 +3736,12 @@ export async function registerRoutes(
         let verdictReason: string;
 
         if (rankBand) {
+          const categoryLabel = topRankCategories.length > 0
+            ? topRankCategories.slice(0, 2).join(", ")
+            : "their Amazon subcategories";
           verdictReason =
-            `Top 5 bestsellers in this niche range from ${rankBand.bestFormatted} ` +
-            `to ${rankBand.worstFormatted} in Books, indicating ${demandDescription} ` +
+            `Top comparable titles rank from ${rankBand.bestFormatted} ` +
+            `to ${rankBand.worstFormatted} in ${categoryLabel} (category ranks, not overall store), indicating ${demandDescription} ` +
             `with ${competitionDescription}.`;
 
           if (analysis.verdictReason) {
@@ -3701,6 +3781,7 @@ export async function registerRoutes(
             evergreenSignal: analysis.evergreenSignal,
             cheapBookShare: analysis.cheapBookShare,
             premiumBookShare: analysis.premiumBookShare,
+            topRankCategories,
           },
           // NEW: Separate core and adjacent stats with market signal
           coreStats: analysis.coreStats,

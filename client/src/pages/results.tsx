@@ -506,7 +506,12 @@ export default function Validate() {
                           <span className="font-medium">
                             #{worstRank.toLocaleString()}
                           </span>{" "}
-                          in the Books store.
+                          in {data.detailedStats.topRankCategories && data.detailedStats.topRankCategories.length > 0 
+                            ? data.detailedStats.topRankCategories.join(", ") 
+                            : "Amazon subcategories"}.
+                          <span className="block text-muted-foreground mt-1">
+                            (These are category ranks, not overall store rankings)
+                          </span>
                         </div>
                       )}
                     </div>

@@ -129,6 +129,7 @@ export type MarketAnalysis = {
     evergreenSignal: boolean;
     cheapBookShare: number | null;
     premiumBookShare: number | null;
+    topRankCategories?: string[];
   };
   books: Book[];
   suggestions: string[];

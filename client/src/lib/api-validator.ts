@@ -74,6 +74,7 @@ export interface ValidateResponse {
     evergreenSignal: boolean;
     cheapBookShare: number | null;
     premiumBookShare: number | null;
+    topRankCategories?: string[];
   };
 
   // Market signal summary with core vs adjacent breakdown

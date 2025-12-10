@@ -43,6 +43,7 @@ export interface NormalizedBook {
   effectiveRank: number | null;
   rankSource?: "bestseller" | "heuristic" | "missing" | "product_lookup";
   rank?: number | null;
+  rankCategory?: string | null; // Specific subcategory for this rank (e.g., "Cozy > Animals")
 
   // Relevance flag
   isRelevant?: boolean;
