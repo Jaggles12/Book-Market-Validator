@@ -1,0 +1,325 @@
+TASK: Implement a Robust Genre/Subgenre System for the Book Market Validator
+1. Goal
+
+Replace the current simplistic genre logic ("nonfiction" / "general nonfiction") with a robust, Amazon-driven system that:
+
+Respects the user’s fiction / nonfiction selection (hard input from UI).
+
+Uses Amazon’s category paths (via Rainforest API results) to infer where the idea actually lives.
+
+Produces a structured genre object with:
+
+category (fiction/nonfiction, from user)
+
+shelf (broad shelf like Self-Help, Romance, Business)
+
+subgenre (e.g. Trauma Recovery, Psychological Thriller)
+
+microgenre (optional: e.g. Trauma Recovery Workbook, Cozy Mystery)
+
+amazonPrimaryPath (top Amazon category path)
+
+amazonAlternatePaths (other strong category paths)
+
+This must work across both fiction and nonfiction and across many subgenres.
+
+2. Data Model Changes
+2.1. Extend NormalizedBook
+
+Add fields to the NormalizedBook type (or equivalent):
+
+amazonCategoryPaths: string[]
+
+Each string is a full human-readable Amazon path, e.g.
+"Books > Self-Help > Post-Traumatic Stress Disorder"
+
+Optionally: primaryAmazonPath: string | null
+
+The single best path for that book, if we want to designate one.
+
+If NormalizedBook is defined in ./types, update it there and adjust wherever it’s constructed.
+
+3. Capture Amazon Category Paths During Normalization
+
+In the Rainforest normalization logic (where we currently map RainforestBook → NormalizedBook):
+
+Look at Rainforest’s fields that expose category info, for example:
+
+bestsellers_rank
+
+categories / browse_nodes / similar fields (depends on what we already get back).
+
+Build one or more readable category paths for each book, like:
+
+"Books > Self-Help > Post-Traumatic Stress Disorder"
+
+"Books > Health, Fitness & Dieting > Mental Health"
+
+Store them in amazonCategoryPaths (array of strings) and, if useful, set primaryAmazonPath to the most relevant path (e.g., the Books path with best rank).
+
+If category data is missing for a book, set amazonCategoryPaths = [] and primaryAmazonPath = null.
+
+4. Create a Central Genre Mapping Config
+
+Create a new config file, e.g. genreMap.ts (or genre-map.json).
+
+This file defines how to map Amazon category paths into our internal genre labels.
+
+Basic idea:
+
+Each entry has:
+
+A matcher (string fragment or regex) that should match an Amazon category path.
+
+A mapping for fiction and/or nonfiction.
+
+Example shape (TypeScript-style, but can be just a plain object):
+
+export const GENRE_MAP = [
+  {
+    matchContains: "Self-Help > Post-Traumatic Stress Disorder",
+    nonfiction: {
+      shelf: "Self-Help",
+      subgenre: "Trauma Recovery",
+      microgenre: "Trauma Recovery Workbook",
+    },
+  },
+  {
+    matchContains: "Literature & Fiction > Mystery, Thriller & Suspense > Psychological Thrillers",
+    fiction: {
+      shelf: "Thriller",
+      subgenre: "Psychological Thriller",
+      microgenre: null,
+    },
+  },
+  // Add more entries over time as we see more categories
+];
+
+
+Requirements:
+
+The mapping must be data-driven, not hard-coded inside core logic.
+
+It must support both fiction and nonfiction entries.
+
+If both fiction and nonfiction are present, pick the one matching the user’s category.
+
+5. Implement Category Clustering Helper
+
+Implement a helper function, e.g.:
+
+function inferAmazonCategoryCluster(books: NormalizedBook[]): {
+  pathScores: Record<string, number>;
+  sortedPaths: string[];
+}
+
+
+Plain-English behavior:
+
+For each book:
+
+For each amazonCategoryPath:
+
+Start with a base weight of 1.
+
+Optionally boost weight based on:
+
+Relevance (if we have a semantic relevance score for that book).
+
+BSR (better rank → higher weight).
+
+Aggregate: sum weights for each unique path string.
+
+Produce:
+
+pathScores: map from path → numeric score.
+
+sortedPaths: array of paths ordered by score (highest first).
+
+This gives us a ranked list of candidate Amazon category paths for the whole niche.
+
+6. Implement inferGenreFromBooks
+
+Implement a function, e.g.:
+
+function inferGenreFromBooks(
+  books: NormalizedBook[],
+  userCategory: "fiction" | "nonfiction"
+): {
+  category: "fiction" | "nonfiction";
+  shelf: string;
+  subgenre: string;
+  microgenre: string | null;
+  amazonPrimaryPath: string | null;
+  amazonAlternatePaths: string[];
+}
+
+
+Steps:
+
+Call inferAmazonCategoryCluster(books) to get sortedPaths.
+
+Choose amazonPrimaryPath:
+
+First element of sortedPaths that starts with "Books" (or any reasonable filter).
+
+If none exist, amazonPrimaryPath = null.
+
+For mapping:
+
+Iterate over GENRE_MAP entries and find those whose matchContains appears inside amazonPrimaryPath.
+
+Among matching entries, choose the most specific (e.g. longest match string).
+
+If we find a mapping:
+
+If userCategory === "fiction" and entry.fiction exists → use it.
+
+If userCategory === "nonfiction" and entry.nonfiction exists → use it.
+
+If no mapping is found:
+
+Fallback: derive shelf and subgenre by splitting the Amazon path:
+
+Example: "Books > Self-Help > Post-Traumatic Stress Disorder"
+
+shelf = "Self-Help"
+
+subgenre = "Post-Traumatic Stress Disorder"
+
+microgenre = null (or derive something simple).
+
+Set amazonAlternatePaths to the next top 2–3 paths from sortedPaths (excluding the primary path).
+
+Always return:
+
+category = userCategory (do not override fiction/nonfiction from Amazon).
+
+shelf, subgenre, microgenre from mapping or fallback logic.
+
+amazonPrimaryPath, amazonAlternatePaths.
+
+7. Wire This Into the Main Validation Pipeline
+
+Locate the core validation endpoint where you:
+
+Fetch Amazon books.
+
+Normalize them into NormalizedBook[].
+
+Compute ranks / stats / etc.
+
+Currently set:
+
+genre: {
+  category: "nonfiction",
+  subtype: "general nonfiction",
+  label: "...",
+}
+
+
+Replace the old genre logic with:
+
+Use the user’s selection (fiction or nonfiction) as userCategory.
+
+Call inferGenreFromBooks(normalizedBooks, userCategory).
+
+Use the result to populate the JSON output:
+
+const inferredGenre = inferGenreFromBooks(normalizedBooks, userCategory);
+
+result.genre = {
+  category: inferredGenre.category,
+  shelf: inferredGenre.shelf,
+  subgenre: inferredGenre.subgenre,
+  microgenre: inferredGenre.microgenre,
+  amazonPrimaryPath: inferredGenre.amazonPrimaryPath,
+  amazonAlternatePaths: inferredGenre.amazonAlternatePaths,
+};
+
+result.friendlyGenreLabel = [
+  inferredGenre.shelf,
+  inferredGenre.subgenre,
+  inferredGenre.microgenre,
+]
+  .filter(Boolean)
+  .join(" – "); // e.g. "Self-Help – Trauma Recovery – Trauma Recovery Workbook"
+
+
+Everything else in the app should read from this new genre object instead of the old category/subtype scheme.
+
+8. Update Blueprint and Analysis to Use New Genre Fields
+
+Wherever we reference genre in:
+
+Deep analysis text.
+
+Book blueprint.
+
+Verdict explanations.
+
+Update those pieces to use:
+
+genre.shelf
+
+genre.subgenre
+
+genre.microgenre
+
+genre.amazonPrimaryPath (for suggested KDP categories, etc.)
+
+Example text pattern:
+
+“In the Self-Help / Trauma Recovery space…”
+
+“This is a Trauma Recovery Workbook aimed at…”
+
+9. Basic Test Cases (Sanity Check)
+
+After implementation, test with these inputs and confirm the genres look reasonable:
+
+Nonfiction: “Trauma healing workbook for adults”
+
+Expect something like:
+
+category: nonfiction
+
+shelf: Self-Help
+
+subgenre: Trauma Recovery
+
+microgenre: Trauma Recovery Workbook
+
+Nonfiction: “Beginner options trading guide”
+
+Expect something like:
+
+category: nonfiction
+
+shelf: Business & Money
+
+subgenre: Investing
+
+microgenre: Options Trading
+
+Fiction: “dark psychological thriller set in the suburbs”
+
+Expect something like:
+
+category: fiction
+
+shelf: Thriller
+
+subgenre: Psychological Thriller
+
+Fiction: “cozy mystery in a small town bakery with a cat detective”
+
+Expect:
+
+category: fiction
+
+shelf: Mystery
+
+subgenre: Cozy Mystery
+
+If any test yields bad labels, update GENRE_MAP with new mappings rather than changing the core logic.
