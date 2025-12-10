@@ -54,13 +54,22 @@ Wouter provides a minimal routing solution with two primary routes:
 **Server Structure:**
 - `/server/index.ts` - Express server setup, middleware configuration, logging
 - `/server/routes.ts` - API route definitions and business logic
+- `/server/validatorService.ts` - Core validation pipeline (~2000 lines)
 - `/server/storage.ts` - Data access layer with in-memory storage implementation
 - `/server/static.ts` - Static file serving for production builds
 - `/server/vite.ts` - Vite development server integration for HMR
 - `/server/types.ts` - Shared type definitions (NormalizedBook, InferredGenre, etc.)
 - `/server/relevance.ts` - 3-tier book relevance scoring (Core/Adjacent/Out-of-niche)
 - `/server/genreMap.ts` - Genre mapping configuration for Amazon category paths
-- `/server/genreInference.ts` - Genre inference engine using category clustering
+- `/server/genreInference.ts` - Genre inference engine using category clustering and genre family system
+- `/server/canonicalNiche.ts` - Canonical niche detection to prevent genre drift
+
+**Amazon Provider Layer:**
+- `/server/amazon/index.ts` - Provider-agnostic Amazon data layer (single import point)
+- `/server/amazonClient.ts` - Rainforest API implementation (active provider)
+- `/server/amazon/easyParserClient.ts` - EasyParser API implementation (inactive, ready for switching)
+
+The provider layer uses `AMAZON_PROVIDER` env var to switch between implementations. Currently defaults to "rainforest".
 
 **API Design:**
 RESTful API with a single primary endpoint:
@@ -111,13 +120,20 @@ The codebase implements a storage interface (`IStorage`) allowing for easy migra
 
 **Third-Party APIs:**
 
-1. **Rainforest API** (Primary Data Source)
+1. **Rainforest API** (Primary Amazon Data Source - Active)
    - Purpose: Fetches real-time Amazon product data including books, ratings, reviews, prices, and bestseller rankings
    - Authentication: API key via environment variable `RAINFOREST_API_KEY`
    - Integration: Direct HTTP requests via Axios
    - Data Points: Title, ASIN, ratings, reviews, price, bestseller rank, publication date, authors
 
-2. **OpenAI API** (AI Analysis Engine)
+2. **EasyParser API** (Alternative Amazon Data Source - Inactive)
+   - Purpose: Alternative provider for Amazon product data with same capabilities as Rainforest
+   - Authentication: API key via environment variable `EASYPARSER_API_KEY`
+   - Integration: POST requests to https://realtime.easyparser.com/v1/request
+   - Operations: SEARCH (keyword queries), DETAIL (ASIN lookups)
+   - Status: Implemented but not wired; set `AMAZON_PROVIDER=easyparser` to enable
+
+3. **OpenAI API** (AI Analysis Engine)
    - Purpose: Generates market verdict, insights, and actionable suggestions based on analyzed book data
    - Authentication: API key via environment variable `OPENAI_API_KEY`
    - Integration: Official OpenAI SDK
