@@ -274,7 +274,7 @@ export default function Validate() {
             </div>
           </motion.div>
           
-          {/* Top 5 Bestsellers */}
+          {/* Bestsellers */}
           {data.salesLeaders && data.salesLeaders.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -283,9 +283,9 @@ export default function Validate() {
               className="bg-white p-5 rounded-2xl border border-border/50 shadow-sm"
             >
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-base font-semibold">Top 5 Bestsellers</h3>
+                <h3 className="text-base font-semibold">Bestsellers</h3>
                 <span className="text-[10px] text-muted-foreground">
-                  Based on the 5 ranked titles Amazon shows for this niche.
+                  Based on ranked titles Amazon shows for this niche.
                 </span>
               </div>
               <ul className="mt-2 space-y-2 text-sm">
