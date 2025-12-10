@@ -2574,29 +2574,38 @@ function computeMarketSnapshot(
   const hasAnyAdjacent = marketSignal.adjacentBookCount >= 1;
   const isSparseCore = marketSignal.coreBookCount < 3;
 
+  // Determine if data is thin/lightly validated BEFORE verdict selection
+  const isLightlyValidatedData = coreStats.totalBooks < 5 || 
+    (coreStats.totalBooks > 0 && coreStats.lowReviewBooks / coreStats.totalBooks > 0.66);
+
   if (demandLevel === "HIGH") {
     if (competitionLevel === "HIGH") {
       verdict = "YELLOW";
-      verdictReason =
-        "High demand but saturated with strong competitors. Differentiation is key.";
+      verdictReason = isLightlyValidatedData
+        ? "Promising demand signals with competition. Data is thin, so differentiation may be easier than expected."
+        : "High demand but saturated with strong competitors. Differentiation is key.";
     } else {
       verdict = "GREEN";
-      verdictReason =
-        "Strong demand with manageable competition. Good opportunity.";
+      verdictReason = isLightlyValidatedData
+        ? "Promising demand signals with manageable competition. Lightly validated - good pioneer opportunity."
+        : "Strong demand with manageable competition. Good opportunity.";
     }
   } else if (demandLevel === "MEDIUM") {
     if (competitionLevel === "LOW") {
       verdict = "GREEN";
-      verdictReason =
-        "Moderate demand with low competition. Room to establish yourself.";
+      verdictReason = isLightlyValidatedData
+        ? "Emerging demand with low competition. Lightly validated niche with room to pioneer."
+        : "Moderate demand with low competition. Room to establish yourself.";
     } else if (competitionLevel === "MEDIUM") {
       verdict = "YELLOW";
-      verdictReason =
-        "Moderate demand and competition. Success requires strong positioning.";
+      verdictReason = isLightlyValidatedData
+        ? "Emerging demand with moderate competition. Data is thin, but positioning matters."
+        : "Moderate demand and competition. Success requires strong positioning.";
     } else {
       verdict = "RED";
-      verdictReason =
-        "Moderate demand but heavy competition. Hard to break through.";
+      verdictReason = isLightlyValidatedData
+        ? "Thin demand signals with established competition. May be difficult to break through."
+        : "Moderate demand but heavy competition. Hard to break through.";
     }
   } else {
     // LOW demand detected from core books - but check adjacent signal
@@ -2611,12 +2620,28 @@ function computeMarketSnapshot(
     } else if (competitionLevel === "LOW") {
       verdict = "YELLOW";
       verdictReason =
-        "Low demand but also low competition. Niche may be too small.";
+        "Low demand but also low competition. Niche may be too small or underexplored.";
     } else {
       verdict = "RED";
       verdictReason =
         "Low demand with existing competition. Not recommended.";
     }
+  }
+
+  // === VERDICT GUARDRAILS: Prevent overly optimistic verdicts with thin data ===
+  
+  // Guardrail 1: Cap at YELLOW when core books < 5
+  if (verdict === "GREEN" && coreStats.totalBooks < 5) {
+    console.log(`⚠️ VERDICT GUARDRAIL: Downgrading GREEN → YELLOW (only ${coreStats.totalBooks} core books)`);
+    verdict = "YELLOW";
+    // Reason already uses lightly validated language from isLightlyValidatedData check above
+  }
+  
+  // Guardrail 2: Cap at YELLOW when signal strength is sparse
+  if (verdict === "GREEN" && marketSignal.signalStrength === "sparse") {
+    console.log(`⚠️ VERDICT GUARDRAIL: Downgrading GREEN → YELLOW (sparse market signal)`);
+    verdict = "YELLOW";
+    // Reason already uses lightly validated language from isLightlyValidatedData check above
   }
 
   // Add context about data quality
@@ -3620,11 +3645,12 @@ export async function registerRoutes(
         const analysis = computeMarketSnapshot(enrichedWorkingBooks, genre, enrichedCoreBooks, enrichedAdjacentBooks);
 
         // Infer genre from enriched Amazon category data (use ALL enriched books for better clustering)
-        let inferredGenre = inferGenreFromBooks(enrichedDisplayBooks, genre.category);
+        // Pass canonicalNiche to filter out blocked subcategories (race/ethnicity, Children's for nonfiction)
+        let inferredGenre = inferGenreFromBooks(enrichedDisplayBooks, genre.category, canonicalNiche);
         const inferredGenreLabel = generateFriendlyGenreLabelFromInferred(inferredGenre);
         
         console.log("=== GENRE INFERENCE DEBUG ===");
-        console.log("Inferred genre (before anchor check):", {
+        console.log("Inferred genre (after path filtering):", {
           category: inferredGenre.category,
           shelf: inferredGenre.shelf,
           subgenre: inferredGenre.subgenre,
@@ -3816,12 +3842,29 @@ export async function registerRoutes(
           .slice(0, 3)
           .map(([name]) => name);
 
-        const demandDescription =
-          demandLevelPretty === "High"
+        // Check if data is sparse/lightly validated to adjust demand description
+        const coreBookCount = analysis.coreStats?.totalBooks ?? 0;
+        const lowReviewBooks = analysis.coreStats?.lowReviewBooks ?? 0;
+        const lowReviewRatio = coreBookCount > 0 ? lowReviewBooks / coreBookCount : 0;
+        const isLightlyValidated = coreBookCount < 5 || lowReviewRatio > 0.66;
+        const isSparseData = analysis.marketSignal?.signalStrength === "sparse";
+        
+        // Adjust demand description based on data quality guardrails
+        let demandDescription: string;
+        if (isLightlyValidated || isSparseData) {
+          // Use softer language when data is thin
+          demandDescription = demandLevelPretty === "High"
+            ? "promising demand signals (though lightly validated)"
+            : demandLevelPretty === "Medium"
+            ? "emerging demand with room to pioneer"
+            : "experimental or underexplored demand";
+        } else {
+          demandDescription = demandLevelPretty === "High"
             ? "strong reader demand"
             : demandLevelPretty === "Medium"
             ? "solid, proven demand"
             : "more experimental or emerging demand";
+        }
 
         const competitionDescription =
           competitionLevelPretty === "High"
