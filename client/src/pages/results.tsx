@@ -323,6 +323,46 @@ export default function Validate() {
                     </motion.div>
                     )}
 
+          {/* Adjacent Sales Leaders - shown when no core sales leaders but adjacents exist */}
+          {(!data.salesLeaders || data.salesLeaders.length === 0) && data.adjacentSalesLeaders && data.adjacentSalesLeaders.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-base font-semibold text-amber-900">Closest Sales Leaders (Adjacent Niche)</h3>
+                <span className="text-[10px] text-amber-700">
+                  No direct competitors found. Showing top performers from related categories.
+                </span>
+              </div>
+              <ul className="mt-2 space-y-2 text-sm">
+                {data.adjacentSalesLeaders.map((book, idx) => (
+                  <li
+                    key={book.title + book.rank}
+                    className="border-t border-amber-200 pt-2 first:border-t-0 first:pt-0"
+                  >
+                    <div className="font-medium text-amber-900">
+                      {idx + 1}. {book.title}
+                    </div>
+                    <div className="text-xs text-amber-700">
+                      {book.rank != null ? (
+                        <>BSR #{book.rank.toLocaleString()} · </>
+                      ) : (
+                        <>BSR N/A · </>
+                      )}
+                      Rating {book.rating != null ? book.rating.toFixed(1) : "—"} · 
+                      {book.reviews != null
+                        ? ` ${book.reviews.toLocaleString()} reviews`
+                        : " No reviews yet"}{" "}
+                      · {book.price != null ? `$${book.price.toFixed(2)}` : "Price N/A"}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
 
           {/* Detailed Metrics Accordion */}
           <motion.div
