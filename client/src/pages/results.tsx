@@ -1034,6 +1034,75 @@ export default function Validate() {
                         </div>
                       </div>
                     )}
+                    
+                    {data.deepAnalysis.bookBlueprint.logline && (
+                      <div className="mt-4 pt-4 border-t border-border/40">
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Logline</p>
+                        <p className="text-sm text-foreground/90 font-medium italic">{data.deepAnalysis.bookBlueprint.logline}</p>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.fiveBeatStructure && (
+                      <div className="mt-4 pt-4 border-t border-border/40">
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">5-Beat Structure Summary</p>
+                        <div className="space-y-3">
+                          {data.deepAnalysis.bookBlueprint.fiveBeatStructure.setup && (
+                            <div className="flex gap-3">
+                              <div className="flex-shrink-0 h-6 w-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">1</div>
+                              <div>
+                                <p className="text-xs font-semibold text-purple-700">Setup / Context</p>
+                                <p className="text-sm text-foreground/80 mt-0.5">{data.deepAnalysis.bookBlueprint.fiveBeatStructure.setup}</p>
+                              </div>
+                            </div>
+                          )}
+                          {data.deepAnalysis.bookBlueprint.fiveBeatStructure.disruption && (
+                            <div className="flex gap-3">
+                              <div className="flex-shrink-0 h-6 w-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">2</div>
+                              <div>
+                                <p className="text-xs font-semibold text-purple-700">Disruption / Inciting Event</p>
+                                <p className="text-sm text-foreground/80 mt-0.5">{data.deepAnalysis.bookBlueprint.fiveBeatStructure.disruption}</p>
+                              </div>
+                            </div>
+                          )}
+                          {data.deepAnalysis.bookBlueprint.fiveBeatStructure.risingComplications && (
+                            <div className="flex gap-3">
+                              <div className="flex-shrink-0 h-6 w-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">3</div>
+                              <div>
+                                <p className="text-xs font-semibold text-purple-700">Rising Complications / Development</p>
+                                <p className="text-sm text-foreground/80 mt-0.5">{data.deepAnalysis.bookBlueprint.fiveBeatStructure.risingComplications}</p>
+                              </div>
+                            </div>
+                          )}
+                          {data.deepAnalysis.bookBlueprint.fiveBeatStructure.climax && (
+                            <div className="flex gap-3">
+                              <div className="flex-shrink-0 h-6 w-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">4</div>
+                              <div>
+                                <p className="text-xs font-semibold text-purple-700">Climax / Breakthrough</p>
+                                <p className="text-sm text-foreground/80 mt-0.5">{data.deepAnalysis.bookBlueprint.fiveBeatStructure.climax}</p>
+                              </div>
+                            </div>
+                          )}
+                          {data.deepAnalysis.bookBlueprint.fiveBeatStructure.resolution && (
+                            <div className="flex gap-3">
+                              <div className="flex-shrink-0 h-6 w-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">5</div>
+                              <div>
+                                <p className="text-xs font-semibold text-purple-700">Resolution / Integration</p>
+                                <p className="text-sm text-foreground/80 mt-0.5">{data.deepAnalysis.bookBlueprint.fiveBeatStructure.resolution}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {data.deepAnalysis.bookBlueprint.openingCatalystPrompt && (
+                      <div className="mt-4 pt-4 border-t border-border/40">
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Opening Catalyst Prompt</p>
+                        <div className="p-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-100">
+                          <p className="text-sm text-foreground/90">{data.deepAnalysis.bookBlueprint.openingCatalystPrompt}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}
