@@ -1,0 +1,96 @@
+We have refactored the backend so that:
+
+The Rainforest-based Amazon implementation lives in server/amazonClient.ts.
+
+All Amazon access in the app goes through server/amazon/index.ts, which currently imports the Rainforest client from ../amazonClient and exports a single amazonClient object.
+
+The validation pipeline now lives in server/validatorService.ts and calls amazonClient from ./amazon.
+
+Now I want to add a second Amazon provider implementation for EasyParser, but I do NOT want to switch to it yet. This step is only about creating a parallel client with the same interface as the Rainforest client.
+
+Goal:
+Create a new EasyParser-based Amazon client in server/amazon/easyParserClient.ts that mirrors the public interface of the existing Rainforest client in server/amazonClient.ts (same methods, same parameter shapes, same return types), and normalizes EasyParser responses into the same internal shapes (e.g. NormalizedBook). Do NOT change the provider switch in server/amazon/index.ts yet; Rainforest must remain the only active provider.
+
+Requirements:
+
+Inspect the existing Rainforest client in server/amazonClient.ts
+
+Identify what object it exports that’s used as the provider (for example, rainforestClient or similar).
+
+Identify the public methods that the rest of the app relies on, by looking at how server/amazon/index.ts and server/validatorService.ts use it.
+
+Typical methods to mirror will include:
+
+A function that performs the main book search / fetch by keyword or idea (often named something like fetchAmazonBooks or similar).
+
+A function that enriches a single book by ASIN with BSR and product details (often named something like fetchProductBSR).
+
+Any other Amazon-related functions that the validation pipeline depends on.
+
+Create a new file: server/amazon/easyParserClient.ts
+
+In this file, implement an EasyParser-based client object (for example, easyParserClient) that exposes the same public methods and TypeScript signatures as the Rainforest client in server/amazonClient.ts.
+
+The function names, parameters, and return types must match so that, in the future, we can switch providers simply by changing the provider selection in server/amazon/index.ts.
+
+EasyParser integration details
+
+Use a new environment variable for the EasyParser API key, e.g. EASYPARSER_API_KEY.
+
+Use the correct base URL and endpoints from EasyParser’s Amazon API documentation (for search/keyword queries and for ASIN/product detail lookups).
+
+Implement HTTP calls (using axios) to EasyParser’s Amazon endpoints for:
+
+Getting a list of books/products by search term.
+
+Getting product details / BSR by ASIN.
+
+Parse the EasyParser responses and map them into the same internal types that the Rainforest client returns, including:
+
+ASIN
+
+title
+
+image URL
+
+authors (as an array)
+
+price and currency
+
+star rating and review count
+
+Amazon categories / category paths (in whatever structure our current NormalizedBook expects)
+
+rank / effective rank / any enrichment data types used in the pipeline.
+
+All provider-specific field names from EasyParser should be converted inside easyParserClient.ts so that everything outside this file continues to see the same internal shapes used by the Rainforest implementation.
+
+Do NOT wire EasyParser into the provider switch yet
+
+Do not modify server/amazon/index.ts in this step.
+
+Do not change how AMAZON_PROVIDER is handled.
+
+Do not change server/validatorService.ts or server/routes.ts.
+
+After this task, Rainforest must still be the only active provider used by amazonClient. easyParserClient should exist as an alternative implementation that is not yet selected.
+
+Behavior and safety constraints
+
+Do NOT modify the internal logic of server/amazonClient.ts. Use it only as the reference for the interface and types.
+
+Do NOT change any validation logic, scoring, niche detection, prompts, thresholds, or helper modules.
+
+Do NOT change lib/api-validator.ts or the structure of the /api/validate response.
+
+This is strictly an additive step: add server/amazon/easyParserClient.ts and any necessary supporting types/constants so that it compiles.
+
+Success criteria:
+
+server/amazon/easyParserClient.ts exists and compiles.
+
+It exports a client object (e.g. easyParserClient) that implements the same interface as the Rainforest client in server/amazonClient.ts.
+
+server/amazon/index.ts still selects only the Rainforest client; no wiring changes yet.
+
+The app builds and /api/validate behaves exactly as before, still using Rainforest under the hood.
