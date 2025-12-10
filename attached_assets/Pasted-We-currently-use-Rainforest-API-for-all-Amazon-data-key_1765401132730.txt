@@ -1,0 +1,42 @@
+We currently use Rainforest API for all Amazon data (keyword search, product lookup, BSR extraction, etc.). However, Rainforest has become a bottleneck due to latency, rate limits, and cost per request. We want to evaluate another Amazon data provider (easyparser.com) to compare performance, pricing, and stability. To do this safely, we need to reorganize our backend so Amazon API calls are isolated behind a provider-agnostic interface. This will allow us to switch between Rainforest and a new provider without touching validation logic and without ever calling both providers at once.
+
+Goal: Add a clean provider-switching layer so exactly one Amazon provider is used at runtime. The validator must continue functioning identically; only the data source should become swappable.
+
+Requirements:
+
+Create a new file: server/amazon/index.ts.
+This file becomes the ONLY import point for Amazon data in the entire server. It should import the existing Rainforest implementation from server/amazonClient.ts (export that implementation as rainforestClient). It should read an environment variable AMAZON_PROVIDER (default: "rainforest") and export a single object named amazonClient that refers to exactly one provider implementation.
+
+server/amazon/index.ts should look like this structure:
+import { rainforestClient } from "../amazonClient";
+const provider = process.env.AMAZON_PROVIDER || "rainforest";
+let amazonClient;
+switch (provider) {
+case "rainforest":
+default:
+amazonClient = rainforestClient;
+break;
+}
+export { amazonClient };
+
+Do not reference EasyParser yet. We are only wiring the architecture for swapping providers later.
+
+Modify validatorService.ts so that ALL Amazon calls import from "./amazon" instead of importing from "../amazonClient". Example: import { amazonClient } from "./amazon".
+
+Modify server/routes.ts (and any other files) so that none of them import amazonClient or Rainforest logic directly. The only allowed import for Amazon data is server/amazon/index.ts via import { amazonClient } from "./amazon".
+
+Ensure server/amazonClient.ts exports ONLY the Rainforest implementation (rename its export to rainforestClient). Do not change its internal logic or behavior. This is a pure wiring change.
+
+Absolutely no dual-provider behavior is allowed. After this change, the whole app must make calls to exactly one provider determined by AMAZON_PROVIDER. There should be zero remaining direct imports of the Rainforest client anywhere except inside server/amazon/index.ts.
+
+Do not modify any logic in the validation pipeline, any scoring or niche detection logic, any prompts, thresholds, helper functions, or anything in lib/api-validator.ts. This is strictly an architectural change to isolate Amazon provider selection.
+
+Success criteria:
+
+The app compiles and runs exactly as before.
+
+/api/validate returns the same structure and values.
+
+Only one provider is ever called at runtime.
+
+Changing AMAZON_PROVIDER changes the provider globally without touching code.
