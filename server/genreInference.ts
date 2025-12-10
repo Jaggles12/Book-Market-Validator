@@ -110,7 +110,7 @@ const CANONICAL_TO_FAMILY: Record<string, GenreFamily> = {
 
 // Path patterns that indicate genre family membership
 // These are checked against Amazon category paths to detect family signals
-const FAMILY_PATH_PATTERNS: Record<GenreFamily, string[]> = {
+export const FAMILY_PATH_PATTERNS: Record<GenreFamily, string[]> = {
   "Romance": [
     "romance",
     "romantic",

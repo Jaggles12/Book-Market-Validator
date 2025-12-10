@@ -1466,7 +1466,8 @@ export async function runBookMarketValidation(body: any, userId?: string): Promi
       semanticScore: b.semanticScore,
       relevanceBucket: b.relevanceBucket,
     })),
-    canonicalNiche
+    canonicalNiche,
+    normalizedTerms.canonicalGenre
   );
   
   console.log("=== CATEGORY PURITY CHECK ===", {
@@ -1486,7 +1487,8 @@ export async function runBookMarketValidation(body: any, userId?: string): Promi
     let hasInvalidCategory = false;
     
     for (const path of book.amazonCategoryPaths) {
-      const alignment = scoreCategoryAlignment(path, canonicalNiche);
+      // Pass canonicalGenre for genre family matching
+      const alignment = scoreCategoryAlignment(path, canonicalNiche, normalizedTerms.canonicalGenre);
       if (alignment.isDrift) {
         hasInvalidCategory = true;
       }
@@ -1684,7 +1686,8 @@ export async function runBookMarketValidation(body: any, userId?: string): Promi
   });
 
   const inferredPath = inferredGenre.amazonPrimaryPath || `${inferredGenre.shelf} > ${inferredGenre.subgenre}`;
-  const categoryCheck = scoreCategoryAlignment(inferredPath, canonicalNiche);
+  // Pass canonicalGenre for genre family matching
+  const categoryCheck = scoreCategoryAlignment(inferredPath, canonicalNiche, normalizedTerms.canonicalGenre);
   
   if (categoryCheck.isDrift) {
     console.warn(

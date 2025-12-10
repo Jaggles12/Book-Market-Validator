@@ -1,4 +1,5 @@
 import { CanonicalNiche, SearchTermCandidate, NicheProfile, AudienceProfile } from "./types";
+import { mapCanonicalToFamily, FAMILY_PATH_PATTERNS, GenreFamily } from "./genreInference";
 
 const GENRE_KEYWORDS: Record<string, { 
   keywords: string[]; 
@@ -323,10 +324,12 @@ export function generateSearchTermsFromNiche(
 
 export function scoreCategoryAlignment(
   categoryPath: string,
-  niche: CanonicalNiche
+  niche: CanonicalNiche,
+  canonicalGenre?: string
 ): { score: number; isDrift: boolean; reason?: string } {
   const lowerPath = categoryPath.toLowerCase();
   
+  // First check for invalid categories (hard drift detection)
   for (const invalid of niche.invalidCategories) {
     if (lowerPath.includes(invalid.toLowerCase())) {
       return {
@@ -337,28 +340,72 @@ export function scoreCategoryAlignment(
     }
   }
   
-  for (const valid of niche.validAmazonCategories) {
-    if (lowerPath.includes(valid.toLowerCase())) {
-      return {
-        score: 1.0,
-        isDrift: false
-      };
+  // NEW: Genre family-based alignment
+  // Map the canonical genre to its family
+  const family = mapCanonicalToFamily(canonicalGenre || niche.expectedGenre);
+  
+  if (family) {
+    // Check if path contains any family-specific patterns
+    const familyPatterns = FAMILY_PATH_PATTERNS[family] || [];
+    const hasFamilyMatch = familyPatterns.some(pattern => 
+      lowerPath.includes(pattern.toLowerCase())
+    );
+    
+    if (hasFamilyMatch) {
+      // Path matches the expected genre family - high alignment
+      return { score: 1.0, isDrift: false };
+    }
+    
+    // Check if path matches a DIFFERENT family strongly
+    const otherFamilies = Object.keys(FAMILY_PATH_PATTERNS) as GenreFamily[];
+    for (const otherFamily of otherFamilies) {
+      if (otherFamily === family || otherFamily === "LiteraryFiction" || otherFamily === "Nonfiction") {
+        continue; // Skip current family and generic categories
+      }
+      
+      const otherPatterns = FAMILY_PATH_PATTERNS[otherFamily] || [];
+      const hasOtherMatch = otherPatterns.some(pattern => 
+        lowerPath.includes(pattern.toLowerCase())
+      );
+      
+      if (hasOtherMatch) {
+        // Path matches a different specific family - this is drift
+        return {
+          score: 0.2,
+          isDrift: true,
+          reason: `Category "${categoryPath}" suggests "${otherFamily}" but expected "${family}"`
+        };
+      }
     }
   }
   
-  if (niche.category === "fiction" && lowerPath.includes("fiction")) {
-    return { score: 0.7, isDrift: false };
+  // Legacy: check validAmazonCategories from niche definition
+  for (const valid of niche.validAmazonCategories) {
+    if (lowerPath.includes(valid.toLowerCase())) {
+      return { score: 1.0, isDrift: false };
+    }
   }
+  
+  // Generic fiction/nonfiction fallback
+  if (niche.category === "fiction") {
+    // "Literature & Fiction" is acceptable for any fiction family
+    if (lowerPath.includes("literature") || lowerPath.includes("fiction")) {
+      return { score: 0.7, isDrift: false };
+    }
+  }
+  
   if (niche.category === "nonfiction" && !lowerPath.includes("fiction")) {
     return { score: 0.5, isDrift: false };
   }
   
-  return { score: 0.3, isDrift: false };
+  // Unknown path - moderate alignment
+  return { score: 0.4, isDrift: false };
 }
 
 export function computeSearchResultPurity(
   books: { amazonCategoryPaths?: string[]; semanticScore?: number; relevanceBucket?: string }[],
-  niche: CanonicalNiche
+  niche: CanonicalNiche,
+  canonicalGenre?: string
 ): { categoryPurity: number; domainAlignment: number; coreCount: number; driftBooks: number } {
   if (books.length === 0) {
     return { categoryPurity: 0, domainAlignment: 0, coreCount: 0, driftBooks: 0 };
@@ -374,7 +421,8 @@ export function computeSearchResultPurity(
       let hasDrift = false;
       
       for (const path of book.amazonCategoryPaths) {
-        const result = scoreCategoryAlignment(path, niche);
+        // Pass canonicalGenre to enable genre family matching
+        const result = scoreCategoryAlignment(path, niche, canonicalGenre);
         if (result.score > bestScore) {
           bestScore = result.score;
         }
