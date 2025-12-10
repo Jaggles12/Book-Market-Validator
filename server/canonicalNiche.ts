@@ -31,7 +31,7 @@ const GENRE_KEYWORDS: Record<string, {
     invalidCategories: ["Fiction", "Romance"]
   },
   "Relationships": {
-    keywords: ["relationship", "marriage", "dating", "love", "couples", "communication", "intimacy", "divorce", "breakup"],
+    keywords: ["relationship advice", "marriage advice", "dating advice", "couples therapy", "communication skills", "intimacy guide", "divorce recovery", "breakup recovery", "relationship help"],
     category: "nonfiction",
     validCategories: ["Relationships", "Marriage", "Dating", "Love", "Communication"],
     invalidCategories: ["Romance Fiction", "Erotica"]
@@ -127,28 +127,66 @@ const DOMAIN_EXTRACTORS: Record<string, string[]> = {
 export function deriveCanonicalNiche(
   rawIdea: string,
   nicheProfile?: NicheProfile,
-  audienceProfile?: AudienceProfile
+  audienceProfile?: AudienceProfile,
+  lockedCategory?: "fiction" | "nonfiction"
 ): CanonicalNiche {
   const lower = rawIdea.toLowerCase();
   
-  let expectedGenre = "General Nonfiction";
-  let category: "fiction" | "nonfiction" = "nonfiction";
+  // Determine the category constraint from lockedCategory or nicheProfile
+  const categoryHint = lockedCategory || nicheProfile?.category;
+  
+  let expectedGenre = categoryHint === "fiction" ? "General Fiction" : "General Nonfiction";
+  let category: "fiction" | "nonfiction" = categoryHint || "nonfiction";
   let validAmazonCategories: string[] = [];
   let invalidCategories: string[] = [];
+  
+  // Two-pass matching: first pass prioritizes genres matching the locked category
+  // This prevents nonfiction genres (like "Relationships") from hijacking fiction prompts
+  type GenreMatch = { genre: string; config: typeof GENRE_KEYWORDS[string]; matchCount: number };
+  const allMatches: GenreMatch[] = [];
   
   for (const [genre, config] of Object.entries(GENRE_KEYWORDS)) {
     const matchCount = config.keywords.filter(kw => lower.includes(kw)).length;
     if (matchCount > 0) {
-      expectedGenre = genre;
-      category = config.category;
-      validAmazonCategories = config.validCategories;
-      invalidCategories = config.invalidCategories;
-      break;
+      allMatches.push({ genre, config, matchCount });
     }
   }
   
-  if (nicheProfile) {
-    category = nicheProfile.category;
+  // Sort: prefer matches that align with the locked category, then by match count
+  if (categoryHint) {
+    allMatches.sort((a, b) => {
+      const aMatchesCategory = a.config.category === categoryHint ? 1 : 0;
+      const bMatchesCategory = b.config.category === categoryHint ? 1 : 0;
+      // First priority: matches locked category
+      if (aMatchesCategory !== bMatchesCategory) {
+        return bMatchesCategory - aMatchesCategory;
+      }
+      // Second priority: more keyword matches
+      return b.matchCount - a.matchCount;
+    });
+  }
+  
+  // Use the best match (category-aligned, highest match count)
+  if (allMatches.length > 0) {
+    const best = allMatches[0];
+    expectedGenre = best.genre;
+    category = best.config.category;
+    validAmazonCategories = best.config.validCategories;
+    invalidCategories = best.config.invalidCategories;
+    
+    // Log when we prioritize a category-aligned match over a higher-count match
+    if (allMatches.length > 1 && categoryHint) {
+      const alternates = allMatches.slice(1).filter(m => m.matchCount >= best.matchCount);
+      if (alternates.length > 0) {
+        console.log(`[CanonicalNiche] Prioritized "${best.genre}" (${best.config.category}) over ${alternates.map(a => `"${a.genre}"`).join(", ")} due to category lock "${categoryHint}"`);
+      }
+    }
+  }
+  
+  // If nicheProfile provides a category and it differs from the matched genre's category,
+  // this indicates a potential mismatch. The locked category should take precedence.
+  if (nicheProfile && nicheProfile.category !== category && categoryHint) {
+    category = categoryHint;
   }
   
   let worldview: "secular" | "spiritual" | "religious" | "mixed" = "secular";

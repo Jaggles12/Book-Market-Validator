@@ -1342,7 +1342,7 @@ export async function runBookMarketValidation(body: any, userId?: string): Promi
     keywordTokens: normalizedTerms.keywordTokens,
   });
 
-  const canonicalNiche = deriveCanonicalNiche(idea, nicheProfile, audience);
+  const canonicalNiche = deriveCanonicalNiche(idea, nicheProfile, audience, lockedCategory);
   console.log("=== CANONICAL NICHE ANCHOR ===", {
     expectedGenre: canonicalNiche.expectedGenre,
     expectedDomains: canonicalNiche.expectedDomains,
