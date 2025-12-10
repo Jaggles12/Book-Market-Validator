@@ -10,13 +10,16 @@ export interface BookForRelevance {
   categories?: string[]; // e.g. ["Gardening & Horticulture > Techniques"]
 }
 
+export type RelevanceBucket = "core" | "adjacent" | "out_of_niche";
+
 export interface RelevanceScores {
   index: number;         // index of the book in the original array
   keywordScore: number;  // 0–1 based on token overlap with niche
   categoryScore: number; // 0–1 based on token overlap with niche
   semanticScore: number; // 0–1 from OpenAI
   finalScore: number;    // weighted combined score
-  isRelevant: boolean;   // final decision
+  isRelevant: boolean;   // final decision (true = core or adjacent)
+  bucket: RelevanceBucket; // core (>=0.70), adjacent (0.50-0.69), out_of_niche (<0.50)
 }
 
 export interface RelevanceOptions {
@@ -264,6 +267,7 @@ export async function scoreBooksForNiche(
       semanticScore: 0,
       finalScore: 0,
       isRelevant: false,
+      bucket: "out_of_niche" as RelevanceBucket,
     }));
   }
 
@@ -284,19 +288,25 @@ export async function scoreBooksForNiche(
     const categoryScore = categoryScores[index] ?? 0;
     const semanticScore = semanticScores[index] ?? 0;
 
-    // How many signals passed their individual thresholds?
-    let signalsPassing = 0;
-    if (keywordScore >= minKeywordScore) signalsPassing++;
-    if (semanticScore >= minSemanticScore) signalsPassing++;
-    if (categoryScore >= minCategoryScore) signalsPassing++;
-
-    const isRelevant = signalsPassing >= minSignalsPassing;
-
-    // Weighted combined score (for ranking / sorting, not strict gating)
+    // Weighted combined score (for ranking / sorting and bucket assignment)
     const finalScore =
       keywordScore * keywordWeight +
       semanticScore * semanticWeight +
       categoryScore * categoryWeight;
+
+    // Assign bucket based on finalScore thresholds
+    let bucket: RelevanceBucket;
+    if (finalScore >= 0.70) {
+      bucket = "core";
+    } else if (finalScore >= 0.50) {
+      bucket = "adjacent";
+    } else {
+      bucket = "out_of_niche";
+    }
+
+    // isRelevant = true for core and adjacent (used for primary analysis)
+    // Only core books are used for main competition stats
+    const isRelevant = bucket === "core" || bucket === "adjacent";
 
     return {
       index,
@@ -305,6 +315,7 @@ export async function scoreBooksForNiche(
       semanticScore,
       finalScore,
       isRelevant,
+      bucket,
     };
   });
 

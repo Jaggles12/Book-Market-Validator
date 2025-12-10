@@ -2309,6 +2309,36 @@ export async function registerRoutes(
     return score;
   }
 
+  // Normalize raw relevance score to 0-1 scale
+  function normalizeScore(rawScore: number): number {
+    // Raw scores typically range from -40 to +50
+    // Map to 0-1 scale with sigmoid-like transformation
+    const MIN_RAW = -40;
+    const MAX_RAW = 50;
+    
+    // Clamp the raw score
+    const clamped = Math.max(MIN_RAW, Math.min(MAX_RAW, rawScore));
+    
+    // Linear normalization to 0-1
+    const normalized = (clamped - MIN_RAW) / (MAX_RAW - MIN_RAW);
+    
+    return Math.round(normalized * 100) / 100; // Round to 2 decimal places
+  }
+
+  // Assign bucket based on normalized semantic score
+  function assignBucket(semanticScore: number): "core" | "adjacent" | "out_of_niche" {
+    if (semanticScore >= 0.70) return "core";
+    if (semanticScore >= 0.50) return "adjacent";
+    return "out_of_niche";
+  }
+
+  interface RelevanceBuckets {
+    coreBooks: NormalizedBook[];
+    adjacentBooks: NormalizedBook[];
+    outOfNicheBooks: NormalizedBook[];
+    allScoredBooks: NormalizedBook[];
+  }
+
   function applyRelevanceFiltering(
     books: NormalizedBook[],
     niche: NicheProfile,
@@ -2316,36 +2346,94 @@ export async function registerRoutes(
   ): {
     filteredBooks: NormalizedBook[];
     droppedBooks: NormalizedBook[];
+    buckets: RelevanceBuckets;
   } {
-    const MIN_SCORE = 10;
-    const HARD_DROP_SCORE = -10;
-
+    // Score and normalize all books
     const scored = books.map((b) => {
-      const relevanceScore = computeRelevanceScore(b, niche, audience);
-      return { book: b, relevanceScore };
+      const rawScore = computeRelevanceScore(b, niche, audience);
+      const semanticScore = normalizeScore(rawScore);
+      const bucket = assignBucket(semanticScore);
+      
+      // Attach scores to book
+      const enrichedBook: NormalizedBook = {
+        ...b,
+        semanticScore,
+        relevanceBucket: bucket,
+      };
+      
+      return { book: enrichedBook, rawScore, semanticScore, bucket };
     });
 
-    const filtered = scored
-      .filter((s) => s.relevanceScore >= MIN_SCORE)
-      .sort((a, b) => {
-        const aRank = typeof a.book.rank === "number" ? a.book.rank : Infinity;
-        const bRank = typeof b.book.rank === "number" ? b.book.rank : Infinity;
+    // Sort by rank first, then by semantic score
+    const sortByRankAndScore = (a: typeof scored[0], b: typeof scored[0]) => {
+      const aRank = typeof a.book.rank === "number" ? a.book.rank : Infinity;
+      const bRank = typeof b.book.rank === "number" ? b.book.rank : Infinity;
+      if (aRank !== bRank) return aRank - bRank;
+      return b.semanticScore - a.semanticScore;
+    };
 
-        if (aRank !== bRank) return aRank - bRank;
-        return b.relevanceScore - a.relevanceScore;
-      });
+    // Bucket books
+    const coreBooks = scored
+      .filter((s) => s.bucket === "core")
+      .sort(sortByRankAndScore)
+      .map((s) => s.book);
+    
+    const adjacentBooks = scored
+      .filter((s) => s.bucket === "adjacent")
+      .sort(sortByRankAndScore)
+      .map((s) => s.book);
+    
+    const outOfNicheBooks = scored
+      .filter((s) => s.bucket === "out_of_niche")
+      .sort(sortByRankAndScore)
+      .map((s) => s.book);
 
-    const dropped = scored.filter((s) => s.relevanceScore <= HARD_DROP_SCORE);
+    // For backward compatibility: filteredBooks = core only
+    // droppedBooks = out_of_niche (truly irrelevant)
+    const filteredBooks = coreBooks;
+    const droppedBooks = outOfNicheBooks;
 
-    console.log("RELEVANCE FILTER DEBUG:", {
+    console.log("RELEVANCE FILTER DEBUG (with buckets):", {
       total: books.length,
-      kept: filtered.length,
-      dropped: dropped.length,
+      core: coreBooks.length,
+      adjacent: adjacentBooks.length,
+      outOfNiche: outOfNicheBooks.length,
+      scoreRange: {
+        min: Math.min(...scored.map(s => s.semanticScore)),
+        max: Math.max(...scored.map(s => s.semanticScore)),
+        avg: (scored.reduce((sum, s) => sum + s.semanticScore, 0) / scored.length).toFixed(2),
+      },
     });
+
+    // Log sample of each bucket for debugging
+    if (coreBooks.length > 0) {
+      console.log("CORE bucket sample:", coreBooks.slice(0, 3).map(b => ({
+        title: b.title.substring(0, 50),
+        score: b.semanticScore,
+      })));
+    }
+    if (adjacentBooks.length > 0) {
+      console.log("ADJACENT bucket sample:", adjacentBooks.slice(0, 3).map(b => ({
+        title: b.title.substring(0, 50),
+        score: b.semanticScore,
+      })));
+    }
+    if (outOfNicheBooks.length > 0) {
+      console.log("OUT_OF_NICHE bucket sample:", outOfNicheBooks.slice(0, 3).map(b => ({
+        title: b.title.substring(0, 50),
+        score: b.semanticScore,
+      })));
+    }
 
     return {
-      filteredBooks: filtered.map((s) => s.book),
-      droppedBooks: dropped.map((s) => s.book),
+      filteredBooks,
+      droppedBooks,
+      buckets: {
+        coreBooks,
+        adjacentBooks,
+        outOfNicheBooks,
+        allScoredBooks: scored.map(s => s.book),
+      },
     };
   }
 
@@ -2502,7 +2590,7 @@ export async function registerRoutes(
           });
         }
 
-        // Step 2: Relevance filtering (new hybrid scoring)
+        // Step 2: Relevance filtering (new hybrid scoring with buckets)
         const booksForRelevance: BookForRelevance[] = books.map((b) => ({
           title: b.title,
           categories: b.categories?.map((c) => c.name) ?? [],
@@ -2514,14 +2602,50 @@ export async function registerRoutes(
           booksForRelevance
         );
 
-        const workingBooks = books.filter((_, idx) => relevance[idx]?.isRelevant);
+        // Attach relevance scores and buckets to books
+        const scoredBooks = books.map((b, idx) => ({
+          ...b,
+          semanticScore: relevance[idx]?.finalScore ?? 0,
+          relevanceBucket: relevance[idx]?.bucket ?? "out_of_niche",
+        }));
 
-        console.log("=== RELEVANCE DEBUG ===");
+        // Separate into buckets
+        const coreBooks = scoredBooks.filter((_, idx) => relevance[idx]?.bucket === "core");
+        const adjacentBooks = scoredBooks.filter((_, idx) => relevance[idx]?.bucket === "adjacent");
+        const outOfNicheBooks = scoredBooks.filter((_, idx) => relevance[idx]?.bucket === "out_of_niche");
+
+        // Use ONLY core books for primary competition analysis (tighter filtering)
+        // But include adjacent books in the UI display
+        const workingBooks = coreBooks;
+        const displayBooks = [...coreBooks, ...adjacentBooks];
+
+        console.log("=== RELEVANCE DEBUG (with buckets) ===");
         console.log("Relevance filter:", {
           totalBooks: books.length,
-          filteredBooks: workingBooks.length,
-          droppedBooks: books.length - workingBooks.length,
+          coreBooks: coreBooks.length,
+          adjacentBooks: adjacentBooks.length,
+          outOfNicheBooks: outOfNicheBooks.length,
+          usedForStats: workingBooks.length,
         });
+
+        // Log score distribution
+        const allScores = relevance.map(r => r.finalScore);
+        console.log("Score distribution:", {
+          min: Math.min(...allScores).toFixed(2),
+          max: Math.max(...allScores).toFixed(2),
+          avg: (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(2),
+        });
+
+        // Sample titles from each bucket for debugging
+        if (coreBooks.length > 0) {
+          console.log("CORE sample:", coreBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
+        }
+        if (adjacentBooks.length > 0) {
+          console.log("ADJACENT sample:", adjacentBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
+        }
+        if (outOfNicheBooks.length > 0) {
+          console.log("OUT_OF_NICHE sample:", outOfNicheBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
+        }
 
         // Sales leaders
         const rankedCandidates = workingBooks
@@ -2591,7 +2715,8 @@ export async function registerRoutes(
             ? "Medium"
             : "Low";
 
-        const uiBooks = workingBooks.slice(0, 15).map((b) => ({
+        // Show both core and adjacent books in UI, but mark their bucket
+        const uiBooks = displayBooks.slice(0, 15).map((b) => ({
           title: b.title,
           author:
             Array.isArray(b.authors) && b.authors.length > 0
@@ -2604,6 +2729,8 @@ export async function registerRoutes(
           image: b.image ?? null,
           coverColor: `hsl(${Math.random() * 360}, 70%, 80%)`,
           publicationYear: b.publicationYear ?? null,
+          semanticScore: b.semanticScore ?? null,
+          relevanceBucket: b.relevanceBucket ?? null,
         }));
 
         const pricedBooksForStats = uiBooks.filter(

@@ -47,6 +47,10 @@ export interface NormalizedBook {
   // Relevance flag
   isRelevant?: boolean;
 
+  // Semantic relevance scoring (normalized 0-1)
+  semanticScore?: number;
+  relevanceBucket?: "core" | "adjacent" | "out_of_niche";
+
   // Contextual fields for relevance scoring
   categoryPaths?: string[];
   rawCategories?: string[];
