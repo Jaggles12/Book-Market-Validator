@@ -2327,19 +2327,45 @@ function computeMarketSignalSummary(coreBooks: NormalizedBook[], adjacentBooks: 
   const coreCount = coreBooks.length;
   const adjCount = adjacentBooks.length;
   const total = coreCount + adjCount;
+  
+  // Count core books with valid BSR data (prefer effectiveRank, fallback to rank)
+  const rankedCoreCount = coreBooks.filter(b => {
+    const r = b.effectiveRank ?? b.rank;
+    return typeof r === 'number' && r > 0 && r < 900_000;
+  }).length;
 
   let signalStrength: MarketSignalSummary["signalStrength"];
   let dataSource: MarketSignalSummary["dataSource"];
   let explanation: string;
 
-  if (coreCount >= 5) {
+  // Factor in BOTH book count AND BSR quality when determining signal strength
+  // "Strong" requires sufficient core books WITH valid rank data
+  // Branch order matters: check rankedCoreCount === 0 BEFORE rankedCoreCount >= 1
+  
+  if (coreCount >= 6 && rankedCoreCount >= 3) {
+    // Many comps with good BSR data = truly strong signal
     signalStrength = "strong";
     dataSource = "core";
-    explanation = `Strong signal from ${coreCount} direct competitors.`;
+    explanation = `Strong, well-defined niche with ${coreCount} direct competitors and ${rankedCoreCount} titles with measurable sales ranks.`;
+  } else if (coreCount >= 5 && rankedCoreCount >= 2) {
+    // Good comp count with some BSR data = moderate-to-strong
+    signalStrength = "moderate";
+    dataSource = "core";
+    explanation = `Well-defined niche with ${coreCount} direct competitors and ${rankedCoreCount} with sales rank data.`;
+  } else if (coreCount >= 4 && rankedCoreCount === 0) {
+    // Several comps but NO BSR data = weak signal (emerging/underexplored)
+    signalStrength = "weak";
+    dataSource = "core";
+    explanation = `${coreCount} direct competitors found but none have measurable sales ranks. This niche may be emerging or underexplored.`;
+  } else if (coreCount >= 4 && rankedCoreCount >= 1) {
+    // Several comps with thin BSR = moderate signal
+    signalStrength = "moderate";
+    dataSource = adjCount > 0 ? "combined" : "core";
+    explanation = `${coreCount} direct competitors with limited sales rank data (${rankedCoreCount} ranked). Niche shows potential but demand is not fully validated.`;
   } else if (coreCount >= 2) {
     signalStrength = "moderate";
     dataSource = adjCount > 0 ? "combined" : "core";
-    explanation = `Moderate signal from ${coreCount} core competitors${adjCount > 0 ? ` plus ${adjCount} adjacent titles` : ""}.`;
+    explanation = `Moderate signal from ${coreCount} core competitors${adjCount > 0 ? ` plus ${adjCount} adjacent titles` : ""}${rankedCoreCount > 0 ? ` (${rankedCoreCount} with sales data)` : " with thin sales data"}.`;
   } else if (coreCount >= 1 && adjCount >= 3) {
     signalStrength = "moderate";
     dataSource = "combined";
