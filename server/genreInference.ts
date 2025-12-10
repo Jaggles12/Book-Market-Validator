@@ -19,13 +19,24 @@ export function inferAmazonCategoryCluster(
   const pathScores: Record<string, number> = {};
 
   for (const book of books) {
-    const paths = book.amazonCategoryPaths ?? [];
+    // Collect all category paths - prefer enriched categoriesFlat, then amazonCategoryPaths
+    const paths: string[] = [];
+    
+    // Primary source: enriched categoriesFlat from product endpoint
+    if (book.categoriesFlat && book.categoriesFlat.trim().length > 0) {
+      paths.push(book.categoriesFlat);
+    }
+    
+    // Fallback: amazonCategoryPaths from search/BSR data
+    if (book.amazonCategoryPaths) {
+      paths.push(...book.amazonCategoryPaths);
+    }
     
     for (const path of paths) {
       if (!path || path.trim().length === 0) continue;
       
-      // Base weight
-      let weight = 1.0;
+      // Base weight - boost enriched data
+      let weight = book.isEnriched ? 2.0 : 1.0;
       
       // Boost for semantic relevance
       if (typeof book.semanticScore === "number" && book.semanticScore > 0) {
@@ -44,9 +55,10 @@ export function inferAmazonCategoryCluster(
         }
       }
       
-      // Only count "Books" paths (filter out Kindle Store, Audible, etc.)
+      // Count all paths that look like book categories
       const normalizedPath = path.trim();
-      if (normalizedPath.startsWith("Books >") || normalizedPath.startsWith("Books>")) {
+      // Accept paths starting with "Books" or containing book-related category structure
+      if (normalizedPath.startsWith("Books >") || normalizedPath.startsWith("Books>") || normalizedPath.includes(" > ")) {
         pathScores[normalizedPath] = (pathScores[normalizedPath] ?? 0) + weight;
       }
     }

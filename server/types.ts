@@ -60,8 +60,32 @@ export interface NormalizedBook {
   amazonCategoryPaths?: string[];
   primaryAmazonPath?: string | null;
 
+  // Enriched category data from product endpoint
+  categoryIds?: string[];  // Amazon browse node IDs
+  categoriesFlat?: string;  // Full path like "Books > Parenting > Family Activities"
+  enrichedCategories?: { name: string; categoryId: string }[];
+
+  // Enriched product data (from product endpoint lookup)
+  enrichedRating?: number | null;
+  enrichedReviews?: number | null;
+  isEnriched?: boolean;
+
   // Extras
   coverColor?: string | null;
+}
+
+// Enrichment result from product endpoint
+export interface ProductEnrichmentResult {
+  asin: string;
+  rank: number | null;
+  rating: number | null;
+  reviews: number | null;
+  categoryIds: string[];
+  categoriesFlat: string | null;
+  categories: { name: string; categoryId: string }[];
+  publicationDate: string | null;
+  publicationYear: number | null;
+  author: string | null;
 }
 
 // Inferred genre from Amazon category analysis

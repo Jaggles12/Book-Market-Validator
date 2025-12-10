@@ -1088,6 +1088,231 @@ async function fetchProductBSR(asin: string): Promise<ProductEnrichmentData> {
   }
 }
 
+/**
+ * Comprehensive product enrichment - fetches full category hierarchy, ratings, reviews, and BSR
+ * This is the new two-step acquisition: after search, we do targeted product lookups
+ */
+async function enrichBookWithProductDetails(asin: string): Promise<import("./types").ProductEnrichmentResult> {
+  const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY;
+  
+  const emptyResult: import("./types").ProductEnrichmentResult = {
+    asin,
+    rank: null,
+    rating: null,
+    reviews: null,
+    categoryIds: [],
+    categoriesFlat: null,
+    categories: [],
+    publicationDate: null,
+    publicationYear: null,
+    author: null,
+  };
+
+  if (!RAINFOREST_API_KEY) return emptyResult;
+
+  try {
+    const params = {
+      api_key: RAINFOREST_API_KEY,
+      type: "product",
+      amazon_domain: "amazon.com",
+      asin,
+    };
+
+    const resp = await axios.get("https://api.rainforestapi.com/request", {
+      params,
+    });
+
+    const product = resp.data?.product || {};
+
+    // === EXTRACT CATEGORIES (the key new data) ===
+    const categoryIds: string[] = [];
+    const categories: { name: string; categoryId: string }[] = [];
+    let categoriesFlat: string | null = null;
+
+    // categories array: [{ name: "Books", category_id: "123" }, ...]
+    if (Array.isArray(product.categories)) {
+      for (const cat of product.categories) {
+        if (cat.category_id) {
+          categoryIds.push(String(cat.category_id));
+        }
+        if (cat.name && cat.category_id) {
+          categories.push({ name: cat.name, categoryId: String(cat.category_id) });
+        }
+      }
+    }
+
+    // categories_flat: "Books > Parenting > Family Activities"
+    if (typeof product.categories_flat === "string" && product.categories_flat.trim()) {
+      categoriesFlat = product.categories_flat.trim();
+    }
+
+    // === EXTRACT RATING AND REVIEWS ===
+    let rating: number | null = null;
+    let reviews: number | null = null;
+
+    if (typeof product.rating === "number" && product.rating > 0) {
+      rating = product.rating;
+    }
+    if (typeof product.ratings_total === "number" && product.ratings_total >= 0) {
+      reviews = product.ratings_total;
+    }
+
+    // === EXTRACT RANK (existing logic) ===
+    let primaryRank: number | null = null;
+
+    if (Array.isArray(product.bestsellers_rank)) {
+      primaryRank = chooseBestRankFromBestsellers(product.bestsellers_rank);
+    } else if (product.bestsellers_rank && typeof product.bestsellers_rank.rank === "number") {
+      primaryRank = product.bestsellers_rank.rank;
+    }
+
+    if (primaryRank == null && Array.isArray(product.sales_rank) && product.sales_rank.length > 0) {
+      const firstSales = product.sales_rank[0];
+      if (firstSales && typeof firstSales.rank === "number") {
+        primaryRank = firstSales.rank;
+      }
+    } else if (primaryRank == null && typeof product.sales_rank === "number") {
+      primaryRank = product.sales_rank;
+    }
+
+    if (primaryRank == null && typeof product.rank === "number") {
+      primaryRank = product.rank;
+    }
+
+    const rank = typeof primaryRank === "number" && primaryRank > 0 ? primaryRank : null;
+
+    // === EXTRACT AUTHOR ===
+    let author: string | null = null;
+    if (Array.isArray(product.authors) && product.authors.length > 0) {
+      const firstAuthor = product.authors[0];
+      if (typeof firstAuthor === "string" && firstAuthor.trim().length > 0) {
+        author = firstAuthor.trim();
+      } else if (firstAuthor && typeof firstAuthor.name === "string") {
+        author = firstAuthor.name.trim();
+      }
+    }
+
+    // === EXTRACT PUBLICATION DATE ===
+    let publicationDate: string | null = null;
+    let publicationYear: number | null = null;
+
+    if (typeof product.publication_date === "string" && product.publication_date.trim()) {
+      publicationDate = product.publication_date.trim();
+    } else if (product.product_details) {
+      const details = product.product_details;
+      if (typeof details.publication_date === "string") {
+        publicationDate = details.publication_date;
+      } else if (typeof details["Publication date"] === "string") {
+        publicationDate = details["Publication date"];
+      }
+    }
+
+    if (publicationDate) {
+      const yearMatch = publicationDate.match(/\b(19|20)\d{2}\b/);
+      if (yearMatch) {
+        const year = parseInt(yearMatch[0], 10);
+        if (year >= 1900 && year <= 2100) {
+          publicationYear = year;
+        }
+      }
+    }
+
+    console.log("=== ENRICHED PRODUCT DATA ===", {
+      asin,
+      categoriesFlat,
+      categoryIds: categoryIds.slice(0, 3),
+      rating,
+      reviews,
+      rank,
+    });
+
+    return {
+      asin,
+      rank,
+      rating,
+      reviews,
+      categoryIds,
+      categoriesFlat,
+      categories,
+      publicationDate,
+      publicationYear,
+      author,
+    };
+  } catch (err: any) {
+    console.error("Error enriching product for ASIN", asin, err?.message || err);
+    return emptyResult;
+  }
+}
+
+/**
+ * Batch enrich multiple books in parallel
+ * Limit to top N to control API costs
+ */
+async function batchEnrichBooks(
+  books: NormalizedBook[],
+  limit: number = 8
+): Promise<Map<string, import("./types").ProductEnrichmentResult>> {
+  const toEnrich = books.filter((b) => b.asin).slice(0, limit);
+  const results = new Map<string, import("./types").ProductEnrichmentResult>();
+
+  if (toEnrich.length === 0) return results;
+
+  console.log(`Enriching ${toEnrich.length} books with product details...`);
+
+  // Parallel fetch with Promise.allSettled
+  const promises = toEnrich.map((b) => enrichBookWithProductDetails(b.asin!));
+  const settled = await Promise.allSettled(promises);
+
+  for (let i = 0; i < settled.length; i++) {
+    const result = settled[i];
+    const asin = toEnrich[i].asin!;
+    if (result.status === "fulfilled") {
+      results.set(asin, result.value);
+    }
+  }
+
+  console.log(`Enrichment complete: ${results.size}/${toEnrich.length} successful`);
+  return results;
+}
+
+/**
+ * Apply enrichment data to NormalizedBook array
+ */
+function applyEnrichmentToBooks(
+  books: NormalizedBook[],
+  enrichmentMap: Map<string, import("./types").ProductEnrichmentResult>
+): NormalizedBook[] {
+  return books.map((book) => {
+    if (!book.asin || !enrichmentMap.has(book.asin)) {
+      return book;
+    }
+
+    const enrichment = enrichmentMap.get(book.asin)!;
+
+    return {
+      ...book,
+      // Apply enriched category data
+      categoryIds: enrichment.categoryIds,
+      categoriesFlat: enrichment.categoriesFlat ?? undefined,
+      enrichedCategories: enrichment.categories,
+      // Apply enriched rating/reviews (prefer enriched over search data)
+      enrichedRating: enrichment.rating,
+      enrichedReviews: enrichment.reviews,
+      rating: enrichment.rating ?? book.rating,
+      reviews: enrichment.reviews ?? book.reviews,
+      // Apply enriched rank if better
+      effectiveRank: enrichment.rank ?? book.effectiveRank,
+      rankSource: enrichment.rank ? "product_lookup" : book.rankSource,
+      // Update amazon paths from enriched data
+      amazonCategoryPaths: enrichment.categoriesFlat
+        ? [enrichment.categoriesFlat, ...(book.amazonCategoryPaths || [])]
+        : book.amazonCategoryPaths,
+      primaryAmazonPath: enrichment.categoriesFlat ?? book.primaryAmazonPath,
+      isEnriched: true,
+    };
+  });
+}
+
 // Force Amazon search into the Books index via URL
 function buildBooksSearchUrl(searchTerm: string): string {
   const encoded = encodeURIComponent(searchTerm.trim());
@@ -2913,8 +3138,24 @@ export async function registerRoutes(
           console.log("OUT_OF_NICHE sample:", outOfNicheBooks.slice(0, 3).map(b => b.title.substring(0, 50)));
         }
 
-        // Sales leaders from core books
-        const rankedCandidates = workingBooks
+        // === PHASE 2: ENRICHMENT - Targeted product lookups for top core+adjacent books ===
+        // This gets us full category hierarchies, accurate ratings/reviews, and better BSR
+        const booksToEnrich = [...coreBooks, ...adjacentBooks].slice(0, 8);
+        const enrichmentMap = await batchEnrichBooks(booksToEnrich, 8);
+        
+        // Apply enrichment to the books
+        const enrichedCoreBooks = applyEnrichmentToBooks(coreBooks, enrichmentMap);
+        const enrichedAdjacentBooks = applyEnrichmentToBooks(adjacentBooks, enrichmentMap);
+        const enrichedDisplayBooks = [...enrichedCoreBooks, ...enrichedAdjacentBooks];
+        const enrichedWorkingBooks = enrichedCoreBooks;
+
+        console.log("=== ENRICHMENT SUMMARY ===");
+        const enrichedCount = enrichedDisplayBooks.filter(b => b.isEnriched).length;
+        const withCategoryCount = enrichedDisplayBooks.filter(b => b.categoriesFlat).length;
+        console.log(`Enriched ${enrichedCount}/${enrichedDisplayBooks.length} books, ${withCategoryCount} have category paths`);
+
+        // Sales leaders from enriched core books
+        const rankedCandidates = enrichedWorkingBooks
           .filter(
             (b) =>
               typeof b.effectiveRank === "number" &&
@@ -2936,7 +3177,7 @@ export async function registerRoutes(
         }));
 
         // Adjacent sales leaders when core is empty - show top performers from adjacent niche
-        const adjacentRankedCandidates = adjacentBooks
+        const adjacentRankedCandidates = enrichedAdjacentBooks
           .filter(
             (b) =>
               typeof b.effectiveRank === "number" &&
@@ -2957,11 +3198,11 @@ export async function registerRoutes(
           price: b.price ?? null,
         }));
 
-        // Market stats - now with core/adjacent separation
-        const analysis = computeMarketSnapshot(workingBooks, genre, coreBooks, adjacentBooks);
+        // Market stats - now with enriched core/adjacent separation
+        const analysis = computeMarketSnapshot(enrichedWorkingBooks, genre, enrichedCoreBooks, enrichedAdjacentBooks);
 
-        // Infer genre from Amazon category data (use ALL books for better clustering)
-        const inferredGenre = inferGenreFromBooks([...coreBooks, ...adjacentBooks], genre.category);
+        // Infer genre from enriched Amazon category data (use ALL enriched books for better clustering)
+        const inferredGenre = inferGenreFromBooks(enrichedDisplayBooks, genre.category);
         const inferredGenreLabel = generateFriendlyGenreLabelFromInferred(inferredGenre);
         
         console.log("=== GENRE INFERENCE DEBUG ===");
@@ -3059,7 +3300,7 @@ export async function registerRoutes(
             : "Low";
 
         // Show both core and adjacent books in UI, but mark their bucket
-        const uiBooks = displayBooks.slice(0, 15).map((b) => ({
+        const uiBooks = enrichedDisplayBooks.slice(0, 15).map((b) => ({
           title: b.title,
           author:
             Array.isArray(b.authors) && b.authors.length > 0
