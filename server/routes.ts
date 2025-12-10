@@ -1337,6 +1337,18 @@ async function fetchAmazonBooks(
             ? new Date(publicationDate).getFullYear()
             : null;
 
+        // Extract category names from Rainforest data
+        const rawCategories: string[] = [];
+        if (Array.isArray(r.categories)) {
+          for (const cat of r.categories) {
+            if (typeof cat === "string" && cat.trim().length > 0) {
+              rawCategories.push(cat.trim());
+            } else if (cat && typeof cat.name === "string" && cat.name.trim().length > 0) {
+              rawCategories.push(cat.name.trim());
+            }
+          }
+        }
+
         const base: NormalizedBook = {
           title: r.title || "Untitled",
           asin: r.asin || null,
@@ -1363,6 +1375,7 @@ async function fetchAmazonBooks(
           rankSource: rawRank ? "bestseller" : "missing",
           rank: null,
           isRelevant: true,
+          rawCategories,
           coverColor: null,
         };
 
@@ -2593,7 +2606,7 @@ export async function registerRoutes(
         // Step 2: Relevance filtering (new hybrid scoring with buckets)
         const booksForRelevance: BookForRelevance[] = books.map((b) => ({
           title: b.title,
-          categories: b.categories?.map((c) => c.name) ?? [],
+          categories: b.rawCategories ?? [],
         }));
 
         const relevance = await scoreBooksForNiche(
@@ -2605,7 +2618,8 @@ export async function registerRoutes(
         // Attach relevance scores and buckets to books
         const scoredBooks = books.map((b, idx) => ({
           ...b,
-          semanticScore: relevance[idx]?.finalScore ?? 0,
+          semanticScore: relevance[idx]?.semanticScore ?? 0,
+          finalRelevanceScore: relevance[idx]?.finalScore ?? 0,
           relevanceBucket: relevance[idx]?.bucket ?? "out_of_niche",
         }));
 
@@ -2730,6 +2744,7 @@ export async function registerRoutes(
           coverColor: `hsl(${Math.random() * 360}, 70%, 80%)`,
           publicationYear: b.publicationYear ?? null,
           semanticScore: b.semanticScore ?? null,
+          finalRelevanceScore: (b as any).finalRelevanceScore ?? null,
           relevanceBucket: b.relevanceBucket ?? null,
         }));
 
