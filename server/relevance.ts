@@ -337,30 +337,56 @@ export async function scoreBooksForNiche(
   let coreThreshold = 0.70;
   let adjacentThreshold = 0.50;
   
-  if (useAdaptiveThresholds && allFailed && books.length >= 3) {
+  if (useAdaptiveThresholds && allFailed && books.length >= 2) {
     // Sort scores descending to find percentile boundaries
     const sortedScores = [...finalScores].sort((a, b) => b - a);
     const n = sortedScores.length;
     
-    // Top 25% = core, next 35% = adjacent (rest = out_of_niche)
-    const coreIndex = Math.max(0, Math.floor(n * 0.25) - 1);
-    const adjacentIndex = Math.max(0, Math.floor(n * 0.60) - 1);
+    // For small arrays, ensure we get at least 1 core and 1-2 adjacent books
+    // Core: top ~25% (but at least 1 book)
+    // Adjacent: next ~35% (but at least 1 more book)
+    let targetCoreCount = Math.max(1, Math.ceil(n * 0.25));
+    let targetAdjacentCount = Math.max(1, Math.ceil(n * 0.35));
     
-    coreThreshold = sortedScores[coreIndex] ?? 0.70;
-    adjacentThreshold = sortedScores[adjacentIndex] ?? 0.50;
-    
-    // Ensure thresholds are sensible (core > adjacent, both >= minimum floor)
-    const minFloor = 0.15; // Absolute minimum to be considered relevant
-    coreThreshold = Math.max(coreThreshold, minFloor + 0.05);
-    adjacentThreshold = Math.max(adjacentThreshold, minFloor);
-    
-    if (coreThreshold <= adjacentThreshold) {
-      coreThreshold = adjacentThreshold + 0.05;
+    // Don't let core + adjacent exceed total books (leave at least some for out_of_niche if n > 4)
+    if (targetCoreCount + targetAdjacentCount > n) {
+      // For very small sets, put more in core/adjacent
+      targetCoreCount = Math.ceil(n / 2);
+      targetAdjacentCount = n - targetCoreCount;
     }
     
-    console.log("=== ADAPTIVE THRESHOLDS ACTIVATED ===");
-    console.log(`All ${books.length} books failed hard thresholds (0.70/0.50)`);
-    console.log(`New thresholds: core >= ${coreThreshold.toFixed(2)}, adjacent >= ${adjacentThreshold.toFixed(2)}`);
+    // Set thresholds BELOW the cutoff scores so books can actually qualify
+    // Core threshold = just below the score of book at position [targetCoreCount]
+    // Adjacent threshold = just below the score of book at position [targetCoreCount + targetAdjacentCount]
+    const coreThresholdIndex = targetCoreCount; // First book NOT in core
+    const adjacentThresholdIndex = targetCoreCount + targetAdjacentCount; // First book NOT in adjacent
+    
+    // Threshold is BELOW this score (subtract epsilon)
+    const epsilon = 0.001;
+    coreThreshold = coreThresholdIndex < n 
+      ? sortedScores[coreThresholdIndex] - epsilon 
+      : 0; // All books are core
+    adjacentThreshold = adjacentThresholdIndex < n 
+      ? sortedScores[adjacentThresholdIndex] - epsilon 
+      : 0; // All remaining are adjacent
+    
+    // Ensure adjacent threshold is below core threshold
+    if (adjacentThreshold >= coreThreshold) {
+      adjacentThreshold = coreThreshold - epsilon;
+    }
+    
+    // Minimum floor: anything below 0.05 is truly irrelevant
+    const minFloor = 0.05;
+    if (adjacentThreshold < minFloor && sortedScores[n - 1] < minFloor) {
+      // Even the best scores are very low - don't force inclusion
+      console.log("=== ADAPTIVE THRESHOLDS SKIPPED (scores too low) ===");
+    } else {
+      console.log("=== ADAPTIVE THRESHOLDS ACTIVATED ===");
+      console.log(`All ${n} books failed hard thresholds (0.70/0.50)`);
+      console.log(`Scores range: ${sortedScores[n-1].toFixed(3)} to ${sortedScores[0].toFixed(3)}`);
+      console.log(`Target: ${targetCoreCount} core, ${targetAdjacentCount} adjacent`);
+      console.log(`New thresholds: core >= ${coreThreshold.toFixed(3)}, adjacent >= ${adjacentThreshold.toFixed(3)}`);
+    }
   }
 
   const results: RelevanceScores[] = books.map((_, index) => {
