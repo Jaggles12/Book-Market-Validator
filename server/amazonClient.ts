@@ -1181,3 +1181,32 @@ export async function fetchAmazonBooks(
     return { books: generateDemoBooks(searchTerm), isDemo: true };
   }
 }
+
+// -----------------------------
+// Rainforest client bundle
+// -----------------------------
+// This object bundles all Amazon/Rainforest functionality into a single export
+// for use by the provider-agnostic layer in server/amazon/index.ts
+
+export const rainforestClient = {
+  // State
+  get demoMode() { return demoMode; },
+  setDemoMode,
+  
+  // Core functions
+  fetchAmazonBooks,
+  fetchProductBSR,
+  enrichBookWithProductDetails,
+  batchEnrichBooks,
+  applyEnrichmentToBooks,
+  
+  // Utility functions
+  generateDemoBooks,
+  computeEffectiveRank,
+  extractSubcategoryLabel,
+  chooseBestRankFromBestsellers,
+  filterToBooksOnly,
+  filterBooksOnly,
+  buildBooksSearchUrl,
+  buildAmazonBooksSearchUrl,
+};
