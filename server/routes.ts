@@ -94,40 +94,7 @@ interface RainforestBook {
   categories?: { name?: string }[];
 }
 
-export interface NormalizedBook {
-  // Core metadata
-  title: string;
-  asin: string | null;
-  link: string | null;
-  image: string | null;
-
-  // Author(s)
-  authors: string[];
-
-  // Ratings & reviews
-  rating: number | null;
-  reviews: number | null;
-
-  // Pricing
-  price: number | null;
-
-  // Publication
-  publicationDate: string | null;
-  publicationYear: number | null;
-
-  // Ranks
-  rawRank: number | null; // straight from Amazon BSR or null
-  effectiveRank: number | null; // rawRank or heuristic fallback
-  rankSource?: "bestseller" | "heuristic" | "missing" | "product_lookup";
-  // Convenience rank for UI (mirrors effectiveRank)
-  rank?: number | null;
-
-  // Relevance flag
-  isRelevant?: boolean;
-
-  // Extras
-  coverColor?: string | null;
-}
+// NormalizedBook is imported from ./types
 
 // === Sales leader types & helper ===
 

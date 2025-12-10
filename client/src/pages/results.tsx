@@ -768,6 +768,8 @@ export default function Validate() {
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
                   
                   {data.deepAnalysis.positioningStatement && (
                     <div className="mb-4 p-3 bg-blue-50 rounded-xl">

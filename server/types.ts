@@ -18,17 +18,40 @@ export interface NicheProfile {
 }
 
 export interface NormalizedBook {
-  // Your existing fields
+  // Core metadata
   title: string;
-  author: string;
-  price: number | null;
+  asin: string | null;
+  link: string | null;
+  image: string | null;
+
+  // Author(s)
+  authors: string[];
+
+  // Ratings & reviews
   rating: number | null;
   reviews: number | null;
-  rank: number | null;
-  image?: string;
 
-  // New contextual fields for relevance scoring
-  categoryPaths?: string[]; 
+  // Pricing
+  price: number | null;
+
+  // Publication
+  publicationDate: string | null;
+  publicationYear: number | null;
+
+  // Ranks
+  rawRank: number | null;
+  effectiveRank: number | null;
+  rankSource?: "bestseller" | "heuristic" | "missing" | "product_lookup";
+  rank?: number | null;
+
+  // Relevance flag
+  isRelevant?: boolean;
+
+  // Contextual fields for relevance scoring
+  categoryPaths?: string[];
   rawCategories?: string[];
   audienceHint?: "kids" | "teens" | "adult" | "mixed" | "unsure";
+
+  // Extras
+  coverColor?: string | null;
 }
