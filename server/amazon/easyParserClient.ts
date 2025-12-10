@@ -469,15 +469,17 @@ export async function fetchProductBSR(asin: string): Promise<ProductEnrichmentDa
   }
 
   try {
-    const payload = {
+    const params = {
       api_key: EASYPARSER_API_KEY,
       platform: "AMZ",
-      domain: ".com",
       operation: "DETAIL",
       asin,
+      domain: ".com",
+      output: "json",
     };
 
-    const resp = await axios.post<EasyParserDetailResult>(EASYPARSER_BASE_URL, payload, {
+    const resp = await axios.post<EasyParserDetailResult>(EASYPARSER_BASE_URL, null, {
+      params,
       timeout: 15000,
     });
 
@@ -526,15 +528,17 @@ export async function enrichBookWithProductDetails(asin: string): Promise<Produc
   if (!EASYPARSER_API_KEY) return emptyResult;
 
   try {
-    const payload = {
+    const params = {
       api_key: EASYPARSER_API_KEY,
       platform: "AMZ",
-      domain: ".com",
       operation: "DETAIL",
       asin,
+      domain: ".com",
+      output: "json",
     };
 
-    const resp = await axios.post<EasyParserDetailResult>(EASYPARSER_BASE_URL, payload, {
+    const resp = await axios.post<EasyParserDetailResult>(EASYPARSER_BASE_URL, null, {
+      params,
       timeout: 15000,
     });
 
@@ -655,19 +659,19 @@ export async function fetchAmazonBooks(
   }
 
   try {
-    const payload = {
+    const params = {
       api_key: EASYPARSER_API_KEY,
       platform: "AMZ",
-      domain: ".com",
       operation: "SEARCH",
-      payload: {
-        keywords: [searchTerm],
-      },
+      keyword: searchTerm,
+      domain: ".com",
+      output: "json",
     };
 
     console.log(`EasyParser search: term="${searchTerm}"`);
 
-    const resp = await axios.post<EasyParserSearchResult>(EASYPARSER_BASE_URL, payload, {
+    const resp = await axios.post<EasyParserSearchResult>(EASYPARSER_BASE_URL, null, {
+      params,
       timeout: 30000,
     });
 
