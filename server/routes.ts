@@ -2110,8 +2110,8 @@ Rules:
 
 interface BucketStats {
   totalBooks: number;
-  avgRating: number;
-  avgReviews: number;
+  avgRating: number | null;  // null when no valid ratings available
+  avgReviews: number | null; // null when no valid reviews available
   priceMin: number | null;
   priceMax: number | null;
   priceMedian: number | null;
@@ -2134,8 +2134,8 @@ function computeBucketStats(books: NormalizedBook[]): BucketStats {
   if (books.length === 0) {
     return {
       totalBooks: 0,
-      avgRating: 0,
-      avgReviews: 0,
+      avgRating: null,
+      avgReviews: null,
       priceMin: null,
       priceMax: null,
       priceMedian: null,
@@ -2167,12 +2167,18 @@ function computeBucketStats(books: NormalizedBook[]): BucketStats {
     weak: rankedBooks.filter((b) => b.effectiveRank! > 300_000).length,
   };
 
-  const ratings = books.map((b) => b.rating || 0);
-  const reviews = books.map((b) => b.reviews || 0);
+  // Filter to only include books with actual rating/review values (not null/undefined)
+  const validRatings = books.map((b) => b.rating).filter((r): r is number => typeof r === "number" && r > 0);
+  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r > 0);
   const pricesRaw = books.map((b) => b.price).filter((p): p is number => typeof p === "number" && p > 0);
 
-  const avgRating = ratings.reduce((sum, r) => sum + r, 0) / (ratings.length || 1);
-  const avgReviews = reviews.reduce((sum, r) => sum + r, 0) / (reviews.length || 1);
+  // Return null (not 0) when no valid data - 0 is misleading
+  const avgRating = validRatings.length > 0
+    ? validRatings.reduce((sum, r) => sum + r, 0) / validRatings.length
+    : null;
+  const avgReviews = validReviews.length > 0
+    ? validReviews.reduce((sum, r) => sum + r, 0) / validReviews.length
+    : null;
 
   let priceMin: number | null = null;
   let priceMax: number | null = null;
@@ -2297,10 +2303,10 @@ function computeMarketSnapshot(
 
   if (books.length === 0) {
     // No working books - but check if we have adjacent data to report
-    const hasAdjacentData = adjacentStats.totalBooks > 0 && adjacentStats.avgRating > 0;
+    const hasAdjacentData = adjacentStats.totalBooks > 0 && adjacentStats.avgRating !== null && adjacentStats.avgRating > 0;
     
     let verdictReason: string;
-    if (hasAdjacentData) {
+    if (hasAdjacentData && adjacentStats.avgRating !== null) {
       verdictReason = `No direct competitors found for this exact keyword, but we found ${adjacentStats.totalBooks} adjacent title(s) with an average rating of ${adjacentStats.avgRating.toFixed(1)}★. This suggests the concept may fit into a broader space.`;
     } else {
       verdictReason = "No relevant books found — this niche may be untested or use different terminology on Amazon.";
@@ -2308,8 +2314,8 @@ function computeMarketSnapshot(
     
     return {
       totalBooks: 0,
-      avgRating: hasAdjacentData ? adjacentStats.avgRating : 0,
-      avgReviews: hasAdjacentData ? adjacentStats.avgReviews : 0,
+      avgRating: hasAdjacentData ? adjacentStats.avgRating : null,
+      avgReviews: hasAdjacentData ? adjacentStats.avgReviews : null,
       priceMin: hasAdjacentData ? adjacentStats.priceMin : null,
       priceMax: hasAdjacentData ? adjacentStats.priceMax : null,
       priceMedian: hasAdjacentData ? adjacentStats.priceMedian : null,
@@ -2328,7 +2334,7 @@ function computeMarketSnapshot(
       premiumBookShare: 0,
       verdict: hasAdjacentData ? "YELLOW" as const : "YELLOW" as const,
       verdictReason,
-      demandLevel: hasAdjacentData && adjacentStats.avgReviews >= 100 ? "MEDIUM" as const : "LOW" as const,
+      demandLevel: hasAdjacentData && (adjacentStats.avgReviews ?? 0) >= 100 ? "MEDIUM" as const : "LOW" as const,
       competitionLevel: "LOW" as const,
       coreStats,
       adjacentStats,
@@ -2383,21 +2389,23 @@ function computeMarketSnapshot(
   }
 
   // Only include books with actual ratings (not null/undefined/0) for avg calculation
+  // Note: reviews can be 0 (no reviews yet) so only filter out null/undefined for reviews
   const validRatings = books.map((b) => b.rating).filter((r): r is number => typeof r === "number" && r > 0);
-  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r >= 0);
+  const validReviews = books.map((b) => b.reviews).filter((r): r is number => typeof r === "number" && r > 0);
 
   const pricesRaw = books
     .map((b) => b.price)
     .filter((p): p is number => typeof p === "number" && p > 0);
 
   // Use valid ratings only, fallback to adjacent stats if no valid ratings in working set
-  let avgRating = validRatings.length > 0
+  // Return null (not 0) when no data available - 0 is misleading
+  let avgRating: number | null = validRatings.length > 0
     ? validRatings.reduce((sum, r) => sum + r, 0) / validRatings.length
-    : (adjacentStats.avgRating > 0 ? adjacentStats.avgRating : 0);
+    : (adjacentStats.avgRating !== null && adjacentStats.avgRating > 0 ? adjacentStats.avgRating : null);
   
-  const avgReviews = validReviews.length > 0
+  const avgReviews: number | null = validReviews.length > 0
     ? validReviews.reduce((sum, r) => sum + r, 0) / validReviews.length
-    : (adjacentStats.avgReviews > 0 ? adjacentStats.avgReviews : 0);
+    : (adjacentStats.avgReviews !== null && adjacentStats.avgReviews > 0 ? adjacentStats.avgReviews : null);
 
   let priceMin: number | null = null;
   let priceMax: number | null = null;
