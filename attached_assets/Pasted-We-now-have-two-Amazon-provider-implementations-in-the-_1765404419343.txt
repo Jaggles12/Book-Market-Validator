@@ -1,0 +1,49 @@
+We now have two Amazon provider implementations in the project:
+
+Rainforest provider in server/amazonClient.ts (already wired in)
+
+EasyParser provider in server/amazon/easyParserClient.ts (new file created in Step 2 but not wired yet)
+
+The goal of this step is to update the provider selector in server/amazon/index.ts so it can choose EasyParser when AMAZON_PROVIDER="easyparser" is set. However, Rainforest must remain the default provider, and the app must continue to use Rainforest unless I explicitly change the environment variable. This step should NOT alter any validation logic, scoring, thresholds, data shapes, or modify the behavior of the Rainforest implementation.
+
+Please do the following:
+
+Open server/amazon/index.ts
+
+It currently imports the Rainforest implementation from ../amazonClient.ts and exports a single provider object named amazonClient.
+
+Add an import for the EasyParser implementation:
+import { easyParserClient } from "./easyParserClient";
+
+(Adjust the path if necessary based on the existing exports.)
+
+Modify the provider-selection switch so it includes a new case:
+case "easyparser":
+amazonClient = easyParserClient;
+break;
+
+Keep Rainforest as the default:
+
+If AMAZON_PROVIDER is missing or set to any unknown value, the selector must use the Rainforest provider.
+
+Do NOT switch the active provider yet.
+
+This change must be wiring-only.
+
+The application should still run Rainforest unless I manually set AMAZON_PROVIDER="easyparser" in my environment.
+
+Do NOT modify any logic inside server/amazonClient.ts or server/amazon/easyParserClient.ts.
+
+Do not change function bodies, validation logic, scoring, niche detection, prompts, thresholds, or anything in validatorService.ts.
+
+This task is ONLY about adding the ability to select EasyParser.
+
+After the change:
+
+server/amazon/index.ts should be the sole module determining which Amazon provider is used.
+
+No other file should import providers directly.
+
+The app should build cleanly and /api/validate should behave exactly the same (still using Rainforest unless the environment variable is changed).
+
+Please produce a plan to implement this provider-switching update safely.
