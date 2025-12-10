@@ -1736,10 +1736,193 @@ Rules:
 // Market snapshot computation
 // -----------------------------
 
+interface BucketStats {
+  totalBooks: number;
+  avgRating: number;
+  avgReviews: number;
+  priceMin: number | null;
+  priceMax: number | null;
+  priceMedian: number | null;
+  strongCompetitors: number;
+  midCompetitors: number;
+  lowReviewBooks: number;
+  bsrBuckets: {
+    veryStrong: number;
+    strong: number;
+    moderate: number;
+    weak: number;
+  };
+  dominantAuthors: { name: string; count: number }[];
+  evergreenSignal: boolean;
+  cheapBookShare: number;
+  premiumBookShare: number;
+}
+
+function computeBucketStats(books: NormalizedBook[]): BucketStats {
+  if (books.length === 0) {
+    return {
+      totalBooks: 0,
+      avgRating: 0,
+      avgReviews: 0,
+      priceMin: null,
+      priceMax: null,
+      priceMedian: null,
+      strongCompetitors: 0,
+      midCompetitors: 0,
+      lowReviewBooks: 0,
+      bsrBuckets: { veryStrong: 0, strong: 0, moderate: 0, weak: 0 },
+      dominantAuthors: [],
+      evergreenSignal: false,
+      cheapBookShare: 0,
+      premiumBookShare: 0,
+    };
+  }
+
+  const withRank: NormalizedBook[] = books.map((b) => {
+    const effectiveRank = b.effectiveRank ?? computeEffectiveRank(b);
+    return { ...b, effectiveRank, rank: effectiveRank };
+  });
+
+  const rankedBooks = withRank
+    .filter((b) => typeof b.effectiveRank === "number")
+    .sort((a, b) => a.effectiveRank! - b.effectiveRank!)
+    .slice(0, 10);
+
+  const bsrBuckets = {
+    veryStrong: rankedBooks.filter((b) => b.effectiveRank! <= 10_000).length,
+    strong: rankedBooks.filter((b) => b.effectiveRank! > 10_000 && b.effectiveRank! <= 100_000).length,
+    moderate: rankedBooks.filter((b) => b.effectiveRank! > 100_000 && b.effectiveRank! <= 300_000).length,
+    weak: rankedBooks.filter((b) => b.effectiveRank! > 300_000).length,
+  };
+
+  const ratings = books.map((b) => b.rating || 0);
+  const reviews = books.map((b) => b.reviews || 0);
+  const pricesRaw = books.map((b) => b.price).filter((p): p is number => typeof p === "number" && p > 0);
+
+  const avgRating = ratings.reduce((sum, r) => sum + r, 0) / (ratings.length || 1);
+  const avgReviews = reviews.reduce((sum, r) => sum + r, 0) / (reviews.length || 1);
+
+  let priceMin: number | null = null;
+  let priceMax: number | null = null;
+  let priceMedian: number | null = null;
+  let cheapBookShare = 0;
+  let premiumBookShare = 0;
+
+  if (pricesRaw.length > 0) {
+    const sorted = [...pricesRaw].sort((a, b) => a - b);
+    priceMin = sorted[0];
+    priceMax = sorted[sorted.length - 1];
+    priceMedian = sorted[Math.floor(sorted.length / 2)];
+    cheapBookShare = pricesRaw.filter((p) => p <= 2.99).length / pricesRaw.length;
+    premiumBookShare = pricesRaw.filter((p) => p >= 15).length / pricesRaw.length;
+  }
+
+  const strongCompetitors = books.filter((b) => (b.reviews ?? 0) >= 1000 && (b.rating ?? 0) >= 4.3).length;
+  const midCompetitors = books.filter((b) => (b.reviews ?? 0) >= 100 && (b.reviews ?? 0) < 1000 && (b.rating ?? 0) >= 4.0).length;
+  const lowReviewBooks = books.filter((b) => (b.reviews ?? 0) < 50).length;
+
+  const allAuthors = books.flatMap((b) => b.authors || []);
+  const authorFrequency: Record<string, number> = {};
+  allAuthors.forEach((a) => { authorFrequency[a] = (authorFrequency[a] || 0) + 1; });
+  const dominantAuthors = Object.entries(authorFrequency)
+    .filter(([_, count]) => count >= 2)
+    .map(([name, count]) => ({ name, count }));
+
+  const pubYears = books
+    .map((b) => b.publicationDate ? new Date(b.publicationDate).getFullYear() : null)
+    .filter((y): y is number => y !== null && !isNaN(y));
+  const currentYear = new Date().getFullYear();
+  const recentCount = pubYears.filter((y) => y >= currentYear - 1).length;
+  const oldCount = pubYears.filter((y) => y <= currentYear - 5).length;
+  const evergreenSignal = recentCount > 0 && oldCount > 0;
+
+  return {
+    totalBooks: books.length,
+    avgRating,
+    avgReviews,
+    priceMin,
+    priceMax,
+    priceMedian,
+    strongCompetitors,
+    midCompetitors,
+    lowReviewBooks,
+    bsrBuckets,
+    dominantAuthors,
+    evergreenSignal,
+    cheapBookShare,
+    premiumBookShare,
+  };
+}
+
+interface MarketSignalSummary {
+  coreBookCount: number;
+  adjacentBookCount: number;
+  totalBookCount: number;
+  signalStrength: "strong" | "moderate" | "weak" | "sparse";
+  dataSource: "core" | "adjacent" | "combined" | "insufficient";
+  explanation: string;
+}
+
+function computeMarketSignalSummary(coreBooks: NormalizedBook[], adjacentBooks: NormalizedBook[]): MarketSignalSummary {
+  const coreCount = coreBooks.length;
+  const adjCount = adjacentBooks.length;
+  const total = coreCount + adjCount;
+
+  let signalStrength: MarketSignalSummary["signalStrength"];
+  let dataSource: MarketSignalSummary["dataSource"];
+  let explanation: string;
+
+  if (coreCount >= 5) {
+    signalStrength = "strong";
+    dataSource = "core";
+    explanation = `Strong signal from ${coreCount} direct competitors.`;
+  } else if (coreCount >= 2) {
+    signalStrength = "moderate";
+    dataSource = adjCount > 0 ? "combined" : "core";
+    explanation = `Moderate signal from ${coreCount} core competitors${adjCount > 0 ? ` plus ${adjCount} adjacent titles` : ""}.`;
+  } else if (coreCount >= 1 && adjCount >= 3) {
+    signalStrength = "moderate";
+    dataSource = "combined";
+    explanation = `Limited direct competitors (${coreCount}), but ${adjCount} strong adjacent titles suggest audience demand.`;
+  } else if (adjCount >= 5) {
+    signalStrength = "weak";
+    dataSource = "adjacent";
+    explanation = `No direct competitors found, but ${adjCount} adjacent books indicate potential audience crossover.`;
+  } else if (adjCount >= 2) {
+    signalStrength = "sparse";
+    dataSource = "adjacent";
+    explanation = `Sparse data: only ${adjCount} adjacent titles found. Market is unproven but may have whitespace opportunity.`;
+  } else {
+    signalStrength = "sparse";
+    dataSource = "insufficient";
+    explanation = `Very limited data (${total} books). This niche appears untested on Amazon.`;
+  }
+
+  return {
+    coreBookCount: coreCount,
+    adjacentBookCount: adjCount,
+    totalBookCount: total,
+    signalStrength,
+    dataSource,
+    explanation,
+  };
+}
+
 function computeMarketSnapshot(
   books: NormalizedBook[],
-  genreHint: GenreInfo
+  genreHint: GenreInfo,
+  coreBooks?: NormalizedBook[],
+  adjacentBooks?: NormalizedBook[]
 ) {
+  // Compute signal summary if we have bucket data
+  const core = coreBooks || books.filter((b) => b.relevanceBucket === "Core");
+  const adjacent = adjacentBooks || books.filter((b) => b.relevanceBucket === "Adjacent");
+  const marketSignal = computeMarketSignalSummary(core, adjacent);
+
+  // Compute separate stats for core and adjacent
+  const coreStats = computeBucketStats(core);
+  const adjacentStats = computeBucketStats(adjacent);
+
   if (books.length === 0) {
     return {
       totalBooks: 0,
@@ -1761,10 +1944,13 @@ function computeMarketSnapshot(
       evergreenSignal: false,
       cheapBookShare: 0,
       premiumBookShare: 0,
-      verdict: "RED" as const,
-      verdictReason: "No relevant books found — demand appears very low.",
+      verdict: "YELLOW" as const,
+      verdictReason: "No relevant books found — this niche may be untested or use different terminology on Amazon.",
       demandLevel: "LOW" as const,
       competitionLevel: "LOW" as const,
+      coreStats,
+      adjacentStats,
+      marketSignal,
     };
   }
 
@@ -1890,6 +2076,11 @@ function computeMarketSnapshot(
   let verdict: "GREEN" | "YELLOW" | "RED";
   let verdictReason: string;
 
+  // NEW: Use market signal to adjust verdict when core data is sparse
+  const hasStrongAdjacent = marketSignal.adjacentBookCount >= 3 && adjacentStats.avgReviews >= 100;
+  const hasAnyAdjacent = marketSignal.adjacentBookCount >= 1;
+  const isSparseCore = marketSignal.coreBookCount < 3;
+
   if (demandLevel === "HIGH") {
     if (competitionLevel === "HIGH") {
       verdict = "YELLOW";
@@ -1915,7 +2106,16 @@ function computeMarketSnapshot(
         "Moderate demand but heavy competition. Hard to break through.";
     }
   } else {
-    if (competitionLevel === "LOW") {
+    // LOW demand detected from core books - but check adjacent signal
+    if (isSparseCore && hasStrongAdjacent) {
+      // Override: sparse core but strong adjacent indicates whitespace opportunity
+      verdict = "YELLOW";
+      verdictReason = `Limited direct competitors, but strong adjacent titles (${marketSignal.adjacentBookCount} books) suggest audience demand exists. This may be a whitespace opportunity.`;
+    } else if (isSparseCore && hasAnyAdjacent) {
+      // Soften: some adjacent data
+      verdict = "YELLOW";
+      verdictReason = `Few direct competitors found, with ${marketSignal.adjacentBookCount} related titles in adjacent niches. Market is emerging or underserved.`;
+    } else if (competitionLevel === "LOW") {
       verdict = "YELLOW";
       verdictReason =
         "Low demand but also low competition. Niche may be too small.";
@@ -1926,11 +2126,11 @@ function computeMarketSnapshot(
     }
   }
 
-  // Let the API layer describe the exact BSR band.
-  // Here we only warn if rank data is thin.
-  if (rankedBooks.length === 0) {
-    verdictReason +=
-      " Rank data is limited, so treat demand estimates with caution.";
+  // Add context about data quality
+  if (rankedBooks.length === 0 && marketSignal.signalStrength !== "sparse") {
+    verdictReason += " Rank data is limited, so treat demand estimates with caution.";
+  } else if (marketSignal.signalStrength === "sparse") {
+    verdictReason += " Note: This assessment is based on limited data.";
   }
 
   return {
@@ -1952,6 +2152,10 @@ function computeMarketSnapshot(
     verdictReason,
     demandLevel,
     competitionLevel,
+    // NEW: Include separate bucket stats and market signal
+    coreStats,
+    adjacentStats,
+    marketSignal,
   };
 }
 
@@ -2716,11 +2920,11 @@ export async function registerRoutes(
           price: b.price ?? null,
         }));
 
-        // Market stats
-        const analysis = computeMarketSnapshot(workingBooks, genre);
+        // Market stats - now with core/adjacent separation
+        const analysis = computeMarketSnapshot(workingBooks, genre, coreBooks, adjacentBooks);
 
-        // Infer genre from Amazon category data
-        const inferredGenre = inferGenreFromBooks(workingBooks, genre.category);
+        // Infer genre from Amazon category data (use ALL books for better clustering)
+        const inferredGenre = inferGenreFromBooks([...coreBooks, ...adjacentBooks], genre.category);
         const inferredGenreLabel = generateFriendlyGenreLabelFromInferred(inferredGenre);
         
         console.log("=== GENRE INFERENCE DEBUG ===");
@@ -2733,17 +2937,23 @@ export async function registerRoutes(
           alternatePaths: inferredGenre.amazonAlternatePaths,
         });
 
-        // Use inferred genre for display, but keep old label generation as fallback
+        // Use Amazon category path as primary label when available, with friendly fallback
+        const amazonStyleLabel = inferredGenre.amazonPrimaryPath 
+          ? inferredGenre.amazonPrimaryPath.replace(/^Books\s*>\s*/i, "").trim()
+          : null;
         const friendlyGenreLabel = inferredGenreLabel || generateFriendlyGenreLabel(
           searchTerm,
           genre,
           idea
         );
+        // Prefer Amazon-style label for authenticity, fall back to friendly label
+        const displayGenreLabel = amazonStyleLabel || friendlyGenreLabel;
 
         const normalizedGenre = {
           category: genre.category,
           subtype: inferredGenre.subgenre || genre.subtype || "general",
-          label: friendlyGenreLabel,
+          label: displayGenreLabel,
+          friendlyLabel: friendlyGenreLabel,
           // New extended genre fields
           shelf: inferredGenre.shelf,
           subgenre: inferredGenre.subgenre,
@@ -2875,6 +3085,10 @@ export async function registerRoutes(
             cheapBookShare: analysis.cheapBookShare,
             premiumBookShare: analysis.premiumBookShare,
           },
+          // NEW: Separate core and adjacent stats with market signal
+          coreStats: analysis.coreStats,
+          adjacentStats: analysis.adjacentStats,
+          marketSignal: analysis.marketSignal,
           books: uiBooks,
           suggestions: fullAnalysis.suggestions,
           deepAnalysis: {
